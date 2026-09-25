@@ -497,6 +497,24 @@ def _parse_network_interfaces(
             return nested.text
         return (iface.findtext("MACAddress") or "").strip()
 
+    def _mtu(iface: ET.Element) -> int | None:
+        """v0.6.19: read MTU from either V4 direct or V5 ``<Link>``-nested.
+
+        V5 firmware wraps MTU inside ``<Link>`` alongside MACAddress::
+
+            <Link>
+              <MACAddress>02:00:00:00:00:0d</MACAddress>
+              <MTU>1500</MTU>
+            </Link>
+
+        V4 NVR firmware puts ``<MTU>`` as a direct child of
+        ``<NetworkInterface>``. Try both.
+        """
+        link_mtu = _safe_int_mb(_xml_text(iface, "Link/MTU"))
+        if link_mtu is not None:
+            return link_mtu
+        return _safe_int_mb(_xml_text(iface, "MTU"))
+
     out: list[dict[str, Any]] = []
     for iface in root.findall(".//NetworkInterface"):
         out.append(
@@ -506,7 +524,7 @@ def _parse_network_interfaces(
                 "ip_address": _ip_field(iface, "ipAddress"),
                 "subnet_mask": _ip_field(iface, "subnetMask"),
                 "default_gateway": _ip_field(iface, "DefaultGateway"),
-                "mtu": _safe_int_mb(_xml_text(iface, "MTU")),
+                "mtu": _mtu(iface),
                 "mac_address": _mac_address(iface),
             }
         )
@@ -537,6 +555,26 @@ def _parse_streaming_channels(
         if bitrate is not None:
             out[ch_id] = bitrate
     return out
+
+
+def _parse_time(root: ET.Element | None) -> dict[str, str | None]:
+    """Parse ``/ISAPI/System/time`` for clock mode + local time.
+
+    Returns ``{"time_mode": "...", "local_time": "...", "time_zone": "..."}``
+    with ``None`` for any field missing on the device's firmware.
+    """
+    if root is None:
+        return {"time_mode": None, "local_time": None, "time_zone": None}
+    # V5 + V4 both use ``<timeMode>``. Some V4 firmwares emit
+    # ``<TimeMode>`` (capitalised) instead — fall back to that.
+    time_mode = _xml_text(root, "timeMode") or _xml_text(root, "TimeMode")
+    local_time = _xml_text(root, "localTime") or _xml_text(root, "LocalTime")
+    time_zone = _xml_text(root, "timeZone") or _xml_text(root, "TimeZone")
+    return {
+        "time_mode": time_mode or None,
+        "local_time": local_time or None,
+        "time_zone": time_zone or None,
+    }
 
 
 def _parse_streaming_detail(
@@ -807,6 +845,7 @@ class HikvisionISAPIData:
         network_interfaces: list[dict[str, Any]] | None = None,
         streaming_bitrate_kbps: dict[str, int] | None = None,
         streaming_channel_detail: dict[str, Any] | None = None,
+        time_info: dict[str, str | None] | None = None,
     ) -> None:
         self.device_info = device_info
         # Normalized device type: "ipcamera" / "networkvideorecorder" /
@@ -825,6 +864,10 @@ class HikvisionISAPIData:
         # ``/ISAPI/Streaming/channels``. Empty dict on devices that
         # don't expose that endpoint.
         self.streaming_channel_detail = streaming_channel_detail or {}
+        # v0.6.19: device clock / NTP info from /ISAPI/System/time.
+        self.time_info = time_info or {
+            "time_mode": None, "local_time": None, "time_zone": None,
+        }
 
 
 class HikvisionISAPICoordinator(DataUpdateCoordinator[HikvisionISAPIData]):
@@ -1054,6 +1097,34 @@ class HikvisionISAPICoordinator(DataUpdateCoordinator[HikvisionISAPIData]):
             )
             return None
 
+    async def _fetch_time(
+        self, client: ISAPIClient,
+    ) -> ET.Element | None:
+        """``GET /ISAPI/System/time`` for the device clock + NTP info.
+
+        V5.x ``<Time>`` XML::
+
+            <Time>
+              <timeMode>NTP</timeMode>             (NTP / manual)
+              <localTime>2026-09-25T08:27:27+08:00</localTime>
+              <timeZone>CST-8:00:00</timeZone>
+            </Time>
+
+        V4 firmwares may use slightly different tag casing
+        (``<TimeMode>``) — we accept both via direct lookup. Failure
+        here is informational (not fatal); on success, the
+        ``time_mode`` sensor populates with ``NTP`` / ``manual``
+        etc.
+        """
+        try:
+            return await client.get_xml(ISAPI_SYSTEM_TIME)
+        except (ISAPIError, ISAPIAuthError, ISAPIConnectionError) as exc:
+            _LOGGER.info(
+                "%s /ISAPI/System/time failed: %s",
+                self._host, exc,
+            )
+            return None
+
     async def _async_update_data(self) -> HikvisionISAPIData:
         """One coordinator refresh: GET deviceInfo / status / channels / storage / network.
 
@@ -1225,6 +1296,9 @@ class HikvisionISAPICoordinator(DataUpdateCoordinator[HikvisionISAPIData]):
         # (codec, resolution, frame rate, audio). Same XML feeds
         # both this and the bitrate dict above.
         streaming_channel_detail = _parse_streaming_detail(streaming_xml)
+        # v0.6.19: device clock / NTP / timezone info.
+        time_xml = await self._fetch_time(client)
+        time_info = _parse_time(time_xml)
 
         # v0.6.15: refresh summary log. One INFO line per refresh
         # showing which categories of data populated and which didn't.
@@ -1363,6 +1437,7 @@ class HikvisionISAPICoordinator(DataUpdateCoordinator[HikvisionISAPIData]):
         self.network_interfaces = network_interfaces
         self.streaming_bitrate_kbps = streaming_bitrate_kbps
         self.streaming_channel_detail = streaming_channel_detail
+        self.time_info = time_info
 
         return HikvisionISAPIData(
             device_info=device_info,
@@ -1373,4 +1448,5 @@ class HikvisionISAPICoordinator(DataUpdateCoordinator[HikvisionISAPIData]):
             network_interfaces=network_interfaces,
             streaming_bitrate_kbps=streaming_bitrate_kbps,
             streaming_channel_detail=streaming_channel_detail,
+            time_info=time_info,
         )

@@ -14,6 +14,11 @@ The v0.1.23 pattern (from hikvision-snmp) is followed: system / per-
 channel entities are registered immediately if data is available;
 otherwise a coordinator listener adds them as soon as the first
 poll completes.
+
+v0.6.19 adds a device-level ``device_online`` binary sensor (CONNECTIVITY
+class) for HA automations like "if device offline → notify". Coordinator
+failure already takes the entity unavailable, so ``is_on`` is True when
+the latest poll returned data and False only when ``data`` is None.
 """
 
 from __future__ import annotations
@@ -44,7 +49,9 @@ async def async_setup_entry(
     """Set up per-channel binary sensors (online / recording / motion)."""
     coordinator: HikvisionISAPICoordinator = hass.data[DOMAIN][entry.entry_id]
 
-    entities: list[BinarySensorEntity] = []
+    entities: list[BinarySensorEntity] = [
+        HikvisionISAPIDeviceOnlineBinarySensor(coordinator, entry),
+    ]
     for ch in coordinator.channels:
         entities.extend(_entities_for_channel(coordinator, entry, ch))
     async_add_entities(entities)
@@ -203,3 +210,42 @@ class HikvisionISAPIChannelMotionBinarySensor(
                     return None
                 return bool(ch.get("motion_detected", False))
         return None
+
+
+class HikvisionISAPIDeviceOnlineBinarySensor(
+    HikvisionISAPIEntity, BinarySensorEntity
+):
+    """Device-level online / reachability binary sensor (v0.6.19).
+
+    ON when the coordinator's latest poll returned parsed data;
+    OFF when the coordinator failed (returns ``None`` data — HA
+    already takes the entity ``unavailable`` on UpdateFailed, so
+    OFF only fires after the device recovers then fails again
+    with an empty response). Useful for HA automations like
+    ``if not device_online → notify`` without polling the camera
+    snapshot URL.
+
+    Distinct from per-channel ``channel_{N}_online``: this sensor
+    reflects the **device's ISAPI HTTP responder**, while the
+    per-channel one reflects **each mounted IPC stream** (e.g. an
+    NVR-mounted camera can be online at device level but offline
+    at channel level if its RTSP feed drops).
+    """
+
+    _attr_translation_key = "device_online"
+    _attr_device_class = BinarySensorDeviceClass.CONNECTIVITY
+
+    def __init__(
+        self,
+        coordinator: HikvisionISAPICoordinator,
+        entry: ConfigEntry,
+    ) -> None:
+        super().__init__(coordinator, entry)
+        self._attr_unique_id = f"{entry.entry_id}_device_online"
+        self._attr_name = "设备在线"
+
+    @property
+    def is_on(self) -> bool | None:
+        if self.coordinator.data is None:
+            return False
+        return True

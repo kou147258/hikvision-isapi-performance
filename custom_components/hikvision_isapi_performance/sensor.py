@@ -4,31 +4,22 @@ Exposes device_info and system_status as sensors. The mapping is
 fixed in ``SENSORS`` — the user can rename / re-unit / hide any of
 them in the HA UI.
 
-v0.6.17 cleanup (per user feedback after v0.6.16):
+v0.6.19 cleanup (per user feedback after v0.6.18):
 
-- ``cpu_usage`` reads ``cpuUtilization`` (matches what the
-  coordinator stores; pre-v0.6.17 this was the wrong key
-  ``cpuUsage`` and the sensor always showed "unknown").
-- ``memory_usage`` is now a *percentage* — pre-v0.6.17 the sensor
-  read raw MB and HA rendered it under ``PERCENTAGE`` unit,
-  producing absurd values like "728%".
-- All uptime sensors now display in **hours** (rounded to 1
-  decimal). The seconds-based ``uptime`` and ``device_uptime``
-  sensors were deleted (they duplicated the hours version and
-  weren't useful at human-readable precision).
-- The 4 storage sensors were deleted — on the user's V4 NVR
-  (DS-7708N-I4 V4.1.18) the storage endpoint family returns
-  ``<ResponseStatus>`` 4 "Invalid Operation" for every variant,
-  so these would always show "unknown" on this device. Storage
-  on other (V5) firmwares isn't covered by the user's fleet
-  but can be added in a future release if needed.
-- New sensors exposed from data we already parse but didn't
-  publish: ``device_mac`` (from deviceInfo, distinct from
-  network's per-NIC MAC), ``device_type``, ``device_id``,
-  ``firmware_release_date``, ``encoder_version``,
-  ``encoder_release_date``. Useful for tracking the camera
-  fleet's firmware / encoder versions without needing a
-  browser tab open to each device's web UI.
+- ``_or_none`` helper normalises empty strings (``""``) to ``None`` so
+  the entity shows "unknown" instead of a blank cell. V5 IPC firmware
+  returns ``<encoderVersion></encoderVersion>`` for fields it
+  doesn't support — pre-v0.6.19 these came through as empty strings.
+- ``device_status`` no longer reads ``systemStatus.deviceStatus``
+  (which is "Unknown" on V4 NVR because that XML field doesn't
+  exist there). It now derives from coordinator data: "在线" when
+  the coordinator has parsed device_info, "离线" when it doesn't.
+  Coordinator failure already takes the entity unavailable in HA.
+- ``mtu`` sensor exposes the interface MTU (parsed for V4 direct
+  schema and V5 ``<Link>``-nested schema).
+- ``time_mode`` sensor exposes NTP vs manual from ``/ISAPI/System/time``.
+- ``encoder_release_date`` removed — V4-specific, only populated on
+  some firmwares, of low operational value vs ``encoder_version``.
 """
 
 from __future__ import annotations
@@ -69,21 +60,21 @@ SENSORS: tuple[HikvisionISAPISensorDescription, ...] = (
         translation_key="model",
         name="型号",
         icon="mdi:information-outline",
-        value_fn=lambda d: d.device_info.get("model", ""),
+        value_fn=lambda d: _or_none(d.device_info.get("model")),
     ),
     HikvisionISAPISensorDescription(
         key="serial_number",
         translation_key="serial_number",
         name="序列号",
         icon="mdi:barcode",
-        value_fn=lambda d: d.device_info.get("serialNumber", ""),
+        value_fn=lambda d: _or_none(d.device_info.get("serialNumber")),
     ),
     HikvisionISAPISensorDescription(
         key="firmware_version",
         translation_key="firmware_version",
         name="固件版本",
         icon="mdi:chip",
-        value_fn=lambda d: d.device_info.get("firmwareVersion", ""),
+        value_fn=lambda d: _or_none(d.device_info.get("firmwareVersion")),
     ),
     HikvisionISAPISensorDescription(
         key="firmware_release_date",
@@ -91,7 +82,7 @@ SENSORS: tuple[HikvisionISAPISensorDescription, ...] = (
         name="固件发布日期",
         icon="mdi:calendar",
         # V5 firmware: "build 240522"; V4: same format.
-        value_fn=lambda d: d.device_info.get("firmwareReleasedDate", ""),
+        value_fn=lambda d: _or_none(d.device_info.get("firmwareReleasedDate")),
     ),
     HikvisionISAPISensorDescription(
         key="device_type",
@@ -101,7 +92,7 @@ SENSORS: tuple[HikvisionISAPISensorDescription, ...] = (
         # Direct from deviceInfo; values like "IPCamera",
         # "NetworkVideoRecorder", "DVR". (V5.x IPC may return
         # "IPZoom" or other product-line-specific strings.)
-        value_fn=lambda d: d.device_info.get("deviceType", ""),
+        value_fn=lambda d: _or_none(d.device_info.get("deviceType")),
     ),
     HikvisionISAPISensorDescription(
         key="device_id",
@@ -110,7 +101,7 @@ SENSORS: tuple[HikvisionISAPISensorDescription, ...] = (
         icon="mdi:identifier",
         # UUID-style device ID from <deviceID>. Useful for
         # distinguishing physically-identical units in dashboards.
-        value_fn=lambda d: d.device_info.get("deviceID", ""),
+        value_fn=lambda d: _or_none(d.device_info.get("deviceID")),
     ),
     HikvisionISAPISensorDescription(
         key="device_mac",
@@ -121,7 +112,7 @@ SENSORS: tuple[HikvisionISAPISensorDescription, ...] = (
         # reported by /System/Network/interfaces. On the user's
         # dual-NIC NVR these may differ; the deviceInfo MAC is
         # the canonical hardware address.
-        value_fn=lambda d: d.device_info.get("macAddress", ""),
+        value_fn=lambda d: _or_none(d.device_info.get("macAddress")),
     ),
     HikvisionISAPISensorDescription(
         key="encoder_version",
@@ -129,14 +120,7 @@ SENSORS: tuple[HikvisionISAPISensorDescription, ...] = (
         name="编码器版本",
         icon="mdi:codec",
         # V4 firmware has this; V5 may omit (returns "").
-        value_fn=lambda d: d.device_info.get("encoderVersion", ""),
-    ),
-    HikvisionISAPISensorDescription(
-        key="encoder_release_date",
-        translation_key="encoder_release_date",
-        name="编码器发布日期",
-        icon="mdi:calendar",
-        value_fn=lambda d: d.device_info.get("encoderReleasedDate", ""),
+        value_fn=lambda d: _or_none(d.device_info.get("encoderVersion")),
     ),
     # ---- system status (from /ISAPI/System/status) ----
     HikvisionISAPISensorDescription(
@@ -144,7 +128,13 @@ SENSORS: tuple[HikvisionISAPISensorDescription, ...] = (
         translation_key="device_status",
         name="设备状态",
         icon="mdi:check-circle",
-        value_fn=lambda d: d.system_status.get("deviceStatus", "Unknown"),
+        # v0.6.19: derived from coordinator data, not from
+        # ``<deviceStatus>``. V4 NVR firmware doesn't emit
+        # ``<deviceStatus>`` in its ``/System/status`` XML, so the
+        # pre-v0.6.19 read always returned "Unknown" on V4 NVRs.
+        # Coordinator success means the device responded; coordinator
+        # failure already takes the entity unavailable in HA.
+        value_fn=lambda d: _device_status_text(d),
     ),
     HikvisionISAPISensorDescription(
         key="cpu_usage",
@@ -241,6 +231,31 @@ SENSORS: tuple[HikvisionISAPISensorDescription, ...] = (
         # firmware generations.
         value_fn=lambda d: _first_iface(d, "mac_address"),
     ),
+    HikvisionISAPISensorDescription(
+        key="network_mtu",
+        translation_key="network_mtu",
+        name="网卡 MTU",
+        icon="mdi:network",
+        state_class=SensorStateClass.MEASUREMENT,
+        native_unit_of_measurement="B",
+        # v0.6.19: read first interface MTU. V5 wraps MTU inside
+        # ``<Link>`` (alongside MAC), V4 puts it directly on the
+        # interface. _parse_network_interfaces handles both.
+        value_fn=lambda d: _first_iface(d, "mtu"),
+    ),
+    # ---- device clock (from /ISAPI/System/time, v0.6.19) ----
+    HikvisionISAPISensorDescription(
+        key="time_mode",
+        translation_key="time_mode",
+        name="时间同步模式",
+        icon="mdi:clock-check",
+        # Returns ``"NTP"`` / ``"manual"`` from
+        # ``/ISAPI/System/time``. Useful to detect devices whose
+        # time drifted because NTP is misconfigured. The
+        # coordinator's _fetch_time is best-effort: on V4 firmware
+        # that doesn't expose the endpoint this stays "unknown".
+        value_fn=lambda d: _or_none(d.time_info.get("time_mode")),
+    ),
     # ---- storage (re-added in v0.6.18) ----
     # Storage endpoints are 4xx on the user's V4 NVR
     # (DS-7708N-I4 V4.1.18) but work on V5 NVRs and modern
@@ -298,14 +313,14 @@ SENSORS: tuple[HikvisionISAPISensorDescription, ...] = (
         translation_key="channel_1_video_codec",
         name="通道 1 视频编码",
         icon="mdi:codec",
-        value_fn=lambda d: d.streaming_channel_detail.get("video_codec"),
+        value_fn=lambda d: _or_none(d.streaming_channel_detail.get("video_codec")),
     ),
     HikvisionISAPISensorDescription(
         key="channel_1_video_resolution",
         translation_key="channel_1_video_resolution",
         name="通道 1 分辨率",
         icon="mdi:aspect-ratio",
-        value_fn=lambda d: d.streaming_channel_detail.get("video_resolution"),
+        value_fn=lambda d: _or_none(d.streaming_channel_detail.get("video_resolution")),
     ),
     HikvisionISAPISensorDescription(
         key="channel_1_video_frame_rate",
@@ -335,7 +350,7 @@ SENSORS: tuple[HikvisionISAPISensorDescription, ...] = (
         translation_key="channel_1_audio_codec",
         name="通道 1 音频编码",
         icon="mdi:music-clef",
-        value_fn=lambda d: d.streaming_channel_detail.get("audio_codec"),
+        value_fn=lambda d: _or_none(d.streaming_channel_detail.get("audio_codec")),
     ),
     # ---- reboot count (V4 NVR doesn't return this; V5 IPC does) ----
     HikvisionISAPISensorDescription(
@@ -358,6 +373,40 @@ def _safe_int(value: Any) -> int | None:
         return int(value)
     except (TypeError, ValueError):
         return None
+
+
+def _or_none(value: Any) -> str | None:
+    """Normalise empty/whitespace strings to ``None``.
+
+    v0.6.19: V5 IPC firmware returns ``<encoderVersion></encoderVersion>``
+    for fields it doesn't populate. Pre-v0.6.19 these came through as
+    ``""`` and the HA entity rendered a blank cell instead of
+    "unknown". Returning ``None`` lets HA display the standard
+    "unknown" state.
+    """
+    if value is None:
+        return None
+    if isinstance(value, str):
+        stripped = value.strip()
+        return stripped or None
+    return value
+
+
+def _device_status_text(data: HikvisionISAPIData) -> str | None:
+    """v0.6.19: derive device status from data availability.
+
+    Pre-v0.6.19 this read ``systemStatus.deviceStatus`` which is
+    "Unknown" on V4 NVR (the field doesn't exist in V4 XML). We
+    can't fall back to coordinator failure for unavailable (HA
+    already handles that), so the only meaningful states are
+    "在线" (data parsed) and "离线" (no data — unreachable).
+
+    Empty ``device_info`` dict means the coordinator's deviceInfo
+    fetch returned None / 4xx. Treat that as unreachable.
+    """
+    if not data.device_info:
+        return "离线"
+    return "在线"
 
 
 def _mb_to_gb(mb: Any) -> float | None:
@@ -421,13 +470,16 @@ def _uptime_hours(value: Any) -> float | None:
     return round(secs / 3600, 1)
 
 
-def _first_iface(data: HikvisionISAPIData, field: str) -> str | None:
-    """Return ``field`` from the first network interface, or None."""
+def _first_iface(data: HikvisionISAPIData, field: str) -> Any:
+    """Return ``field`` from the first network interface, or None.
+
+    v0.6.19: returns ``None`` for empty strings too, so network
+    sensors don't render blank cells.
+    """
     ifaces = data.network_interfaces
     if not ifaces:
         return None
-    value = ifaces[0].get(field)
-    return value or None
+    return _or_none(ifaces[0].get(field))
 
 
 async def async_setup_entry(

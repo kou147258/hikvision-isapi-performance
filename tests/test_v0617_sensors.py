@@ -243,7 +243,14 @@ def test_v0617_uptime_sensor_uses_hours_unit():
 
 
 def test_v0617_new_sensors_added():
-    """v0.6.17 added these sensors we already had data for."""
+    """v0.6.17 added these sensors we already had data for.
+
+    Note: ``encoder_release_date`` was added in v0.6.17 but removed
+    in v0.6.19 — it was V4-firmware-only and of low operational
+    value vs ``encoder_version``. The test intentionally drops it
+    from the assertion list. See ``test_v0619_audit.py`` for the
+    v0.6.19 removal assertion.
+    """
     keys = _sensor_keys()
     for new in (
         "device_mac",
@@ -251,7 +258,6 @@ def test_v0617_new_sensors_added():
         "device_id",
         "firmware_release_date",
         "encoder_version",
-        "encoder_release_date",
         "memory_available_mb",
     ):
         assert new in keys, (

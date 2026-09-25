@@ -276,9 +276,18 @@ def test_v0618_storage_uses_gigabytes_for_size_sensors():
 # ---- 3. manifest version ----
 
 
-def test_v0618_manifest_version_bumped():
+def test_v0618_manifest_version_at_or_beyond():
+    """v0.6.18 anchor; later releases (v0.6.19+) bump further."""
     manifest = json.loads(Path(
         r"C:\Users\43457\Desktop\hikvision-isapi"
         r"\custom_components\hikvision_isapi_performance\manifest.json"
     ).read_text(encoding="utf-8"))
-    assert manifest["version"] == "0.6.18"
+    # The test pins ``0.6.18`` minimum: v0.6.19 bumped to ``0.6.19``,
+    # and later releases may bump further. The release commits
+    # always bump manifest.json.version.
+    parts = manifest["version"].split(".")
+    assert parts[0] == "0"
+    assert int(parts[1]) == 6
+    assert int(parts[2]) >= 18, (
+        f"manifest.json.version must be >= 0.6.18 — got {manifest['version']}"
+    )
