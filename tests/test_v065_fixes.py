@@ -103,23 +103,51 @@ def test_sensor_descriptions_have_unique_translation_keys():
     )
 
 
-def test_channel_1_sensors_exist_with_unique_keys():
-    """v0.6.5: the per-channel-derived sensors must have channel_1_ prefix."""
+def test_v065_channel_1_sensors_removed_in_v0617():
+    """v0.6.17 cleanup removed the per-channel-derived sensors
+    (``channel_1_uptime``, ``channel_1_reboot_count``,
+    ``sd_card_writes``, ``dome_high_temp_runtime``) because the
+    V4 NVR in the user's fleet doesn't serve the per-channel
+    status endpoint, so these were always "unknown" in their
+    HA UI. The original v0.6.5 fix (preventing duplicate keys)
+    is moot after the deletion — replace with a structural
+    check that the sensors are no longer declared.
+    """
     keys = set(_sensor_keys_from_source())
-    assert "channel_1_uptime" in keys, (
-        "channel_1_uptime sensor missing — per-channel uptime should "
-        "show as a separate sensor from device-level device_uptime"
+    # As of v0.6.17 these are intentionally absent. A future
+    # re-add would need to come with namespace-safe unique_id
+    # handling (the v0.6.5 fix).
+    assert "channel_1_uptime" not in keys
+    assert "channel_1_reboot_count" not in keys
+    assert "sd_card_writes" not in keys
+    assert "dome_high_temp_runtime" not in keys
+
+
+def test_v0617_device_uptime_seconds_sensor_removed():
+    """v0.6.17 cleanup removed the seconds-based uptime sensors;
+    only the hours version remains. The v0.6.5 fix needed them
+    to be unique, but now they're gone entirely so the test
+    is a structural check that ``device_uptime`` and ``uptime``
+    (seconds) aren't reintroduced."""
+    src = (Path(__file__).parent.parent
+           / "custom_components" / "hikvision_isapi_performance"
+           / "sensor.py").read_text(encoding="utf-8-sig")
+    # ``device_uptime`` was a distinct entity in v0.6.5 with a
+    # duplicate per-channel twin; v0.6.17 deleted both and only
+    # ``uptime_hours`` remains.
+    assert len(re.findall(r'\n\s+key="device_uptime"', src)) == 0, (
+        "sensor.py still declares a `device_uptime` sensor — "
+        "v0.6.17 removed it in favor of `uptime_hours`."
     )
-    assert "channel_1_reboot_count" in keys, (
-        "channel_1_reboot_count sensor missing — per-channel reboot "
-        "count should show as a separate sensor from device-level reboot_count"
+    assert len(re.findall(r'\n\s+key="uptime"', src)) == 0, (
+        "sensor.py still declares a plain `uptime` (seconds) "
+        "sensor — v0.6.17 removed it in favor of `uptime_hours`."
     )
 
 
 def test_device_uptime_and_reboot_count_have_single_definition():
-    """The device-level uptime / reboot_count each appear exactly once."""
+    """The device-level ``reboot_count`` appears exactly once."""
     keys = _sensor_keys_from_source()
-    assert keys.count("device_uptime") == 1, f"got {keys}"
     assert keys.count("reboot_count") == 1, f"got {keys}"
 
 
@@ -127,19 +155,15 @@ def test_device_uptime_and_reboot_count_have_single_definition():
 
 
 def test_sensor_source_has_no_duplicate_key_string():
-    """Source-level regression guard: the literal ``key="device_uptime"`` (or
-    ``key="reboot_count"``) appears at most twice in the source if you
-    count deliberately-distinct keys, but in this codebase each should
-    appear exactly once.
+    """Source-level regression guard: the literal ``key="reboot_count"``
+    (the only remaining duplicate-prone sensor after v0.6.17) appears
+    exactly once in the source.
     """
     src = (Path(__file__).parent.parent
            / "custom_components" / "hikvision_isapi_performance"
            / "sensor.py").read_text(encoding="utf-8-sig")
     # Use re to avoid matching ``translation_key="..."`` which has the
     # same suffix.
-    assert len(re.findall(r'\n\s+key="device_uptime"', src)) == 1, (
-        "sensor.py has more than one ``key=\"device_uptime\"`` literal"
-    )
     assert len(re.findall(r'\n\s+key="reboot_count"', src)) == 1, (
         "sensor.py has more than one ``key=\"reboot_count\"`` literal"
     )

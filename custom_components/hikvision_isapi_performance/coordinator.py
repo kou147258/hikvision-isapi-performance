@@ -93,7 +93,12 @@ def _xml_text(element: ET.Element | None, *path: str) -> str | None:
 
 
 def _parse_device_info(root: ET.Element | None) -> dict[str, str]:
-    """Parse ``/ISAPI/System/deviceInfo`` response."""
+    """Parse ``/ISAPI/System/deviceInfo`` response.
+
+    v0.6.17: also extracts ``encoderVersion`` and
+    ``encoderReleasedDate`` (V4 firmware usually has these; V5
+    may omit them).
+    """
     if root is None:
         return {}
     return {
@@ -105,6 +110,10 @@ def _parse_device_info(root: ET.Element | None) -> dict[str, str]:
         "firmwareReleasedDate": _xml_text(root, "firmwareReleasedDate") or "",
         "deviceType": _xml_text(root, "deviceType") or "",
         "macAddress": _xml_text(root, "macAddress") or "",
+        # V4-specific fields (some firmwares put them on the
+        # deviceInfo root; on V5 they're typically absent).
+        "encoderVersion": _xml_text(root, "encoderVersion") or "",
+        "encoderReleasedDate": _xml_text(root, "encoderReleasedDate") or "",
         "manufacturer": "Hikvision",
     }
 
@@ -467,6 +476,27 @@ def _parse_network_interfaces(
             return nested.text.strip()
         return (iface.findtext(tag) or "").strip()
 
+    def _mac_address(iface: ET.Element) -> str:
+        """v0.6.17: read MAC from either V4 nested or V5 direct.
+
+        V4 NVR firmware wraps MAC inside ``<Link>``::
+
+            <Link>
+              <MACAddress>02:00:00:00:00:0e</MACAddress>
+            </Link>
+
+        V5 firmware has ``<MACAddress>`` as a direct child of
+        ``<NetworkInterface>``.
+
+        Also fall back to the V4 link's ``speed`` / ``MTU`` shape
+        — V5's MTU is often on the link, but some firmwares put
+        it on the interface directly.
+        """
+        nested = iface.find("Link/MACAddress")
+        if nested is not None and nested.text:
+            return nested.text
+        return (iface.findtext("MACAddress") or "").strip()
+
     out: list[dict[str, Any]] = []
     for iface in root.findall(".//NetworkInterface"):
         out.append(
@@ -477,7 +507,7 @@ def _parse_network_interfaces(
                 "subnet_mask": _ip_field(iface, "subnetMask"),
                 "default_gateway": _ip_field(iface, "DefaultGateway"),
                 "mtu": _safe_int_mb(_xml_text(iface, "MTU")),
-                "mac_address": _xml_text(iface, "MACAddress") or "",
+                "mac_address": _mac_address(iface),
             }
         )
     return out

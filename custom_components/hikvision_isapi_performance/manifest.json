@@ -1,7 +1,7 @@
 {
   "domain": "hikvision_isapi_performance",
   "name": "Hikvision ISAPI Performance",
-  "version": "0.6.16",
+  "version": "0.6.17",
   "documentation": "https://github.com/kou147258/hikvision-isapi-performance",
   "issue_tracker": "https://github.com/kou147258/hikvision-isapi-performance/issues",
   "codeowners": ["@kou147258"],

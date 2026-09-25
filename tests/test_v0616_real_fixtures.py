@@ -297,9 +297,14 @@ def test_parse_network_interfaces_real_dual_nic_dvr():
 # ---- manifest ----
 
 
-def test_v0616_manifest_version_bumped():
+def test_v0616_manifest_version_at_or_beyond():
+    """v0.6.16 anchor; later releases bump further."""
     manifest = json.loads(Path(
         r"C:\Users\43457\Desktop\hikvision-isapi"
         r"\custom_components\hikvision_isapi_performance\manifest.json"
     ).read_text(encoding="utf-8"))
-    assert manifest["version"] == "0.6.16"
+    parts = manifest["version"].split(".")
+    assert parts[0] == "0"
+    assert int(parts[1]) >= 6
+    if int(parts[1]) == 6:
+        assert int(parts[2]) >= 16
