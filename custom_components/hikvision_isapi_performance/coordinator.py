@@ -297,11 +297,31 @@ def _parse_capabilities(root: ET.Element | None) -> dict[str, Any]:
         # the consumer doesn't assume one way or the other.
         out["status_supported"] = None
 
-    # Video input channel count. Hikvision nests this under
-    # ``<SysCap>`` — use ``.//`` so we find it at any depth.
-    vic = root.find(".//VideoInputChannelNums")
-    out["video_input_channels"] = (
-        _safe_int_mb(vic.text) if vic is not None and vic.text else None
+    # v0.6.32: video input channel count. Hikvision firmwares use
+    # multiple tag names across versions:
+    # - V5.x: <VideoInputChannelNums>
+    # - Some V4 / older firmwares: <videoInputChannelNums> (camelCase)
+    # - Some firmware variants: <ChannelNum>, <InputChannelNum>
+    # Try each in order; first hit wins.
+    out["video_input_channels"] = _find_int_field(
+        root,
+        candidates=(
+            ".//VideoInputChannelNums",
+            ".//videoInputChannelNums",
+            ".//InputChannelNum",
+            ".//ChannelNum",
+        ),
+    )
+
+    # v0.6.32: ethernet / NIC count — same multi-tag problem.
+    out["ethernet_interfaces"] = _find_int_field(
+        root,
+        candidates=(
+            ".//EthernetNums",
+            ".//ethernetNums",
+            ".//NICNum",
+            ".//NetworkInterfaceNum",
+        ),
     )
 
     # Device types the firmware claims to support.
@@ -311,13 +331,32 @@ def _parse_capabilities(root: ET.Element | None) -> dict[str, Any]:
             types.append(dt.text.strip())
     out["device_types"] = types
 
-    # Ethernet / NIC count. Also nested under ``<NetworkCap>``.
-    eth = root.find(".//EthernetNums")
-    out["ethernet_interfaces"] = (
-        _safe_int_mb(eth.text) if eth is not None and eth.text else None
-    )
-
     return out
+
+
+def _find_int_field(
+    root: ET.Element,
+    candidates: tuple[str, ...],
+) -> int | None:
+    """Find first matching numeric field across multiple XPath variants.
+
+    v0.6.32: Hikvision firmware tags vary across versions — some
+    use PascalCase (``VideoInputChannelNums``), some camelCase
+    (``videoInputChannelNums``), some drop the suffix
+    (``ChannelNum``). Walk the candidates list and return the
+    first non-empty numeric value, or ``None`` if no candidate
+    matched.
+
+    Used by ``_parse_capabilities`` for fields that vary across
+    firmware generations.
+    """
+    for path in candidates:
+        node = root.find(path)
+        if node is not None and node.text:
+            value = _safe_int_mb(node.text)
+            if value is not None:
+                return value
+    return None
 
 
 def _parse_channels(root: ET.Element | None) -> list[dict[str, Any]]:
@@ -1234,14 +1273,41 @@ class HikvisionISAPICoordinator(DataUpdateCoordinator[HikvisionISAPIData]):
     async def _fetch_network_interfaces(
         self, client: ISAPIClient,
     ) -> ET.Element | None:
-        try:
-            return await client.get_xml(ISAPI_SYSTEM_NETWORK_INTERFACES)
-        except (ISAPIError, ISAPIAuthError, ISAPIConnectionError) as exc:
-            _LOGGER.info(
-                "%s /ISAPI/System/Network/interfaces failed: %s",
-                self._host, exc,
-            )
-            return None
+        """Fetch network interfaces XML.
+
+        v0.6.32: try multiple endpoint variants. Some V4 firmwares
+        expose the interface list at a lowercase path
+        (``/ISAPI/System/network/interfaces``) or at the ContentMgmt
+        variant; the canonical ``/System/Network/interfaces`` returns
+        404 on those. Without fallback, dual-NIC NVRs would only ever
+        surface one NIC.
+        """
+        endpoints = (
+            ISAPI_SYSTEM_NETWORK_INTERFACES,  # /System/Network/interfaces
+            "/ISAPI/System/network/interfaces",  # lowercase n
+            "/ISAPI/Networking/interfaces",
+            "/ISAPI/System/NetworkInterface",
+        )
+        last_exc: Exception | None = None
+        for endpoint in endpoints:
+            try:
+                xml = await client.get_xml(endpoint)
+                if endpoint != ISAPI_SYSTEM_NETWORK_INTERFACES:
+                    _LOGGER.info(
+                        "%s network interfaces: using fallback endpoint %s "
+                        "(primary %s unavailable)",
+                        self._host, endpoint, ISAPI_SYSTEM_NETWORK_INTERFACES,
+                    )
+                return xml
+            except (ISAPIError, ISAPIAuthError, ISAPIConnectionError) as exc:
+                last_exc = exc
+                continue
+        _LOGGER.info(
+            "%s /ISAPI/System/Network/interfaces: all fallback endpoints "
+            "failed (last: %s); network_interfaces stays empty.",
+            self._host, last_exc,
+        )
+        return None
 
     async def _fetch_streaming(
         self, client: ISAPIClient,
