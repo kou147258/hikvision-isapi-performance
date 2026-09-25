@@ -241,6 +241,102 @@ SENSORS: tuple[HikvisionISAPISensorDescription, ...] = (
         # firmware generations.
         value_fn=lambda d: _first_iface(d, "mac_address"),
     ),
+    # ---- storage (re-added in v0.6.18) ----
+    # Storage endpoints are 4xx on the user's V4 NVR
+    # (DS-7708N-I4 V4.1.18) but work on V5 NVRs and modern
+    # Hikvision DVRs. Keep these sensors so users with working
+    # firmware see real values; V4 users continue to see
+    # "unknown" gracefully.
+    HikvisionISAPISensorDescription(
+        key="storage_total_gb",
+        translation_key="storage_total",
+        name="存储总量 (GB)",
+        device_class=SensorDeviceClass.DATA_SIZE,
+        state_class=SensorStateClass.MEASUREMENT,
+        native_unit_of_measurement=UnitOfInformation.GIGABYTES,
+        icon="mdi:harddisk",
+        # Display in GB (HA's preferred unit for HDD sizes);
+        # MB internally for cross-firmware compatibility.
+        value_fn=lambda d: _mb_to_gb(d.storage.get("total_mb")),
+    ),
+    HikvisionISAPISensorDescription(
+        key="storage_used_gb",
+        translation_key="storage_used",
+        name="存储已用 (GB)",
+        device_class=SensorDeviceClass.DATA_SIZE,
+        state_class=SensorStateClass.MEASUREMENT,
+        native_unit_of_measurement=UnitOfInformation.GIGABYTES,
+        icon="mdi:harddisk",
+        value_fn=lambda d: _mb_to_gb(d.storage.get("used_mb")),
+    ),
+    HikvisionISAPISensorDescription(
+        key="storage_free_gb",
+        translation_key="storage_free",
+        name="存储剩余 (GB)",
+        device_class=SensorDeviceClass.DATA_SIZE,
+        state_class=SensorStateClass.MEASUREMENT,
+        native_unit_of_measurement=UnitOfInformation.GIGABYTES,
+        icon="mdi:harddisk",
+        value_fn=lambda d: _mb_to_gb(d.storage.get("free_mb")),
+    ),
+    HikvisionISAPISensorDescription(
+        key="storage_usage_percent",
+        translation_key="storage_usage",
+        name="存储使用率",
+        state_class=SensorStateClass.MEASUREMENT,
+        native_unit_of_measurement=PERCENTAGE,
+        icon="mdi:harddisk",
+        value_fn=lambda d: _storage_usage_pct(d.storage),
+    ),
+    # ---- video encoding / streaming detail (v0.6.18) ----
+    # Per-channel codec, resolution, frame rate. Populated from
+    # ``/ISAPI/Streaming/channels`` (V5 IPCs). V4 NVR firmware
+    # mostly returns 4 on this endpoint so these sensors stay
+    # "unknown" on the user's NVR fleet.
+    HikvisionISAPISensorDescription(
+        key="channel_1_video_codec",
+        translation_key="channel_1_video_codec",
+        name="通道 1 视频编码",
+        icon="mdi:codec",
+        value_fn=lambda d: d.streaming_channel_detail.get("video_codec"),
+    ),
+    HikvisionISAPISensorDescription(
+        key="channel_1_video_resolution",
+        translation_key="channel_1_video_resolution",
+        name="通道 1 分辨率",
+        icon="mdi:aspect-ratio",
+        value_fn=lambda d: d.streaming_channel_detail.get("video_resolution"),
+    ),
+    HikvisionISAPISensorDescription(
+        key="channel_1_video_frame_rate",
+        translation_key="channel_1_video_frame_rate",
+        name="通道 1 帧率",
+        device_class=SensorDeviceClass.FREQUENCY,
+        state_class=SensorStateClass.MEASUREMENT,
+        native_unit_of_measurement="fps",
+        icon="mdi:speedometer",
+        # Hikvision reports maxFrameRate in hundredths-of-fps
+        # (1600 = 16 fps, 3000 = 30 fps); _parse_streaming_detail
+        # has already divided by 100.
+        value_fn=lambda d: d.streaming_channel_detail.get("video_frame_rate"),
+    ),
+    HikvisionISAPISensorDescription(
+        key="channel_1_video_bitrate",
+        translation_key="channel_1_video_bitrate",
+        name="通道 1 码率",
+        device_class=SensorDeviceClass.DATA_RATE,
+        state_class=SensorStateClass.MEASUREMENT,
+        native_unit_of_measurement="kbps",
+        icon="mdi:video",
+        value_fn=lambda d: d.streaming_channel_detail.get("video_bitrate_kbps"),
+    ),
+    HikvisionISAPISensorDescription(
+        key="channel_1_audio_codec",
+        translation_key="channel_1_audio_codec",
+        name="通道 1 音频编码",
+        icon="mdi:music-clef",
+        value_fn=lambda d: d.streaming_channel_detail.get("audio_codec"),
+    ),
     # ---- reboot count (V4 NVR doesn't return this; V5 IPC does) ----
     HikvisionISAPISensorDescription(
         key="reboot_count",
@@ -262,6 +358,35 @@ def _safe_int(value: Any) -> int | None:
         return int(value)
     except (TypeError, ValueError):
         return None
+
+
+def _mb_to_gb(mb: Any) -> float | None:
+    """Convert MB → GB (decimal, 1 GB = 10^3 MB) for HDD display.
+
+    Pre-v0.6.17 this existed. v0.6.18 re-adds it for the storage
+    sensors. Returns ``None`` for missing / non-numeric MB so the
+    entity shows "unknown" rather than "0 GB" with no data.
+    """
+    if mb is None:
+        return None
+    try:
+        return round(float(mb) / 1024.0, 1)
+    except (TypeError, ValueError):
+        return None
+
+
+def _storage_usage_pct(storage: dict[str, Any]) -> float | None:
+    """Compute used/total percentage for storage.
+
+    Returns ``None`` when total/used aren't both populated (e.g.
+    the device doesn't expose storage endpoints) so the entity
+    shows "unknown" rather than "0%" placeholder values.
+    """
+    total = storage.get("total_mb")
+    used = storage.get("used_mb")
+    if total is None or used is None or total <= 0:
+        return None
+    return round(used * 100 / total, 1)
 
 
 def _memory_usage_percent(data: HikvisionISAPIData) -> float | None:

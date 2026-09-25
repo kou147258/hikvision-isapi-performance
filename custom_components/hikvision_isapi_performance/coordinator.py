@@ -539,6 +539,137 @@ def _parse_streaming_channels(
     return out
 
 
+def _parse_streaming_detail(
+    root: ET.Element | None,
+) -> dict[str, Any]:
+    """Parse ``/ISAPI/Streaming/channels`` for per-channel streaming
+    detail (codec, resolution, frame rate, audio codec, video bitrate).
+
+    Returns a dict shaped::
+
+        {
+          "first_channel_id": "1",
+          "video_codec": "H.264",
+          "video_resolution": "1920x1080",
+          "video_frame_rate": 16.0,
+          "video_bitrate_kbps": 2048,
+          "video_resolution_width": 1920,
+          "video_resolution_height": 1080,
+          "video_input_channel_id": 1,
+          "audio_codec": "G.711alaw",
+          "channels": [
+            {"id": "1", "video_codec": ..., ...},
+            ...
+          ]
+        }
+
+    The top-level fields describe the first ``<StreamingChannel>`` in
+    the response (the primary video stream on a single-input IPC) so
+    a single-IPC user sees coherent values without needing to know
+    ``channels[*]``. The ``channels`` list carries all entries for
+    users with multi-channel IPCs / PTZ cameras with sub-streams.
+
+    Per the user's V5 IPC ``DS-FB2127`` actual response:
+
+        <StreamingChannel>
+          <id>1</id>
+          <Video>
+            <videoCodecType>H.264</videoCodecType>
+            <videoResolutionWidth>1920</videoResolutionWidth>
+            <videoResolutionHeight>1080</videoResolutionHeight>
+            <maxFrameRate>1600</maxFrameRate>
+            <constantBitRate>2048</constantBitRate>
+          </Video>
+          <Audio>
+            <audioCompressionType>G.711alaw</audioCompressionType>
+          </Audio>
+        </StreamingChannel>
+
+    ``maxFrameRate`` is reported in hundredths-of-fps (so 1600 = 16 fps,
+    3000 = 30 fps) — we divide by 100 to get integer FPS.
+    """
+    empty: dict[str, Any] = {
+        "first_channel_id": None,
+        "video_codec": None,
+        "video_resolution": None,
+        "video_frame_rate": None,
+        "video_bitrate_kbps": None,
+        "video_resolution_width": None,
+        "video_resolution_height": None,
+        "video_input_channel_id": None,
+        "audio_codec": None,
+        "channels": [],
+    }
+    if root is None:
+        return empty
+
+    def _channel_summary(ch: ET.Element) -> dict[str, Any]:
+        """Pull per-channel codec / resolution / framerate / etc.
+
+        Hikvision's ``<StreamingChannel>`` nests the video
+        fields inside a ``<Video>`` element and audio fields
+        inside ``<Audio>`` — we look those up by descendant
+        search rather than direct-child read so the nesting
+        doesn't matter.
+        """
+        video = ch.find("Video")
+        audio = ch.find("Audio")
+        max_frame_raw = _safe_int_mb(
+            _xml_text(video, "maxFrameRate") if video is not None else None
+        )
+        codec = _xml_text(video, "videoCodecType") if video is not None else None
+        width = _safe_int_mb(
+            _xml_text(video, "videoResolutionWidth") if video is not None else None
+        )
+        height = _safe_int_mb(
+            _xml_text(video, "videoResolutionHeight") if video is not None else None
+        )
+        bitrate = _safe_int_mb(
+            _xml_text(video, "videoAverageBitrate") if video is not None else None
+        )
+        if bitrate is None and video is not None:
+            bitrate = _safe_int_mb(_xml_text(video, "constantBitRate"))
+        audio_codec = (
+            _xml_text(audio, "audioCompressionType") if audio is not None else None
+        )
+        video_input = _safe_int_mb(
+            _xml_text(video, "videoInputChannelID") if video is not None else None
+        )
+        return {
+            "id": _xml_text(ch, "id") or None,
+            "video_codec": codec or None,
+            "video_resolution_width": width,
+            "video_resolution_height": height,
+            "video_resolution": (
+                f"{width}x{height}" if width and height else None
+            ),
+            "video_frame_rate": (
+                round(max_frame_raw / 100, 2)
+                if max_frame_raw is not None else None
+            ),
+            "video_bitrate_kbps": bitrate,
+            "video_input_channel_id": video_input,
+            "audio_codec": audio_codec or None,
+        }
+
+    channels = [_channel_summary(ch) for ch in root.findall(".//StreamingChannel")]
+    if not channels:
+        return empty
+    first = channels[0]
+    return {
+        "first_channel_id": first["id"],
+        "video_codec": first["video_codec"],
+        "video_resolution": first["video_resolution"],
+        "video_frame_rate": first["video_frame_rate"],
+        "video_bitrate_kbps": first["video_bitrate_kbps"],
+        "video_resolution_width": first["video_resolution_width"],
+        "video_resolution_height": first["video_resolution_height"],
+        "video_input_channel_id": first["video_input_channel_id"],
+        "audio_codec": first["audio_codec"],
+        "channels": channels,
+    }
+
+
 def _parse_channel_status(
     root: ET.Element | None,
 ) -> dict[str, bool]:
@@ -675,6 +806,7 @@ class HikvisionISAPIData:
         storage: dict[str, Any] | None = None,
         network_interfaces: list[dict[str, Any]] | None = None,
         streaming_bitrate_kbps: dict[str, int] | None = None,
+        streaming_channel_detail: dict[str, Any] | None = None,
     ) -> None:
         self.device_info = device_info
         # Normalized device type: "ipcamera" / "networkvideorecorder" /
@@ -688,6 +820,11 @@ class HikvisionISAPIData:
         self.storage = storage or {}
         self.network_interfaces = network_interfaces or []
         self.streaming_bitrate_kbps = streaming_bitrate_kbps or {}
+        # v0.6.18: per-channel streaming detail (codec, resolution,
+        # frame rate, audio codec). Populated from
+        # ``/ISAPI/Streaming/channels``. Empty dict on devices that
+        # don't expose that endpoint.
+        self.streaming_channel_detail = streaming_channel_detail or {}
 
 
 class HikvisionISAPICoordinator(DataUpdateCoordinator[HikvisionISAPIData]):
@@ -730,6 +867,7 @@ class HikvisionISAPICoordinator(DataUpdateCoordinator[HikvisionISAPIData]):
         self.storage: dict[str, Any] = {}
         self.network_interfaces: list[dict[str, Any]] = []
         self.streaming_bitrate_kbps: dict[str, int] = {}
+        self.streaming_channel_detail: dict[str, Any] = {}
 
     @property
     def host(self) -> str:
@@ -1083,6 +1221,10 @@ class HikvisionISAPICoordinator(DataUpdateCoordinator[HikvisionISAPIData]):
         storage = _parse_storage(storage_xml)
         network_interfaces = _parse_network_interfaces(network_xml)
         streaming_bitrate_kbps = _parse_streaming_channels(streaming_xml)
+        # v0.6.18: parse richer per-channel streaming detail
+        # (codec, resolution, frame rate, audio). Same XML feeds
+        # both this and the bitrate dict above.
+        streaming_channel_detail = _parse_streaming_detail(streaming_xml)
 
         # v0.6.15: refresh summary log. One INFO line per refresh
         # showing which categories of data populated and which didn't.
@@ -1220,6 +1362,7 @@ class HikvisionISAPICoordinator(DataUpdateCoordinator[HikvisionISAPIData]):
         self.storage = storage
         self.network_interfaces = network_interfaces
         self.streaming_bitrate_kbps = streaming_bitrate_kbps
+        self.streaming_channel_detail = streaming_channel_detail
 
         return HikvisionISAPIData(
             device_info=device_info,
@@ -1229,4 +1372,5 @@ class HikvisionISAPICoordinator(DataUpdateCoordinator[HikvisionISAPIData]):
             storage=storage,
             network_interfaces=network_interfaces,
             streaming_bitrate_kbps=streaming_bitrate_kbps,
+            streaming_channel_detail=streaming_channel_detail,
         )

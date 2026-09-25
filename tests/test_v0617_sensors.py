@@ -261,29 +261,27 @@ def test_v0617_new_sensors_added():
 
 
 def test_v0617_total_sensor_count():
-    """Sanity check the new sensor count is reasonable.
-
-    v0.6.16 had 24 sensors, v0.6.17 removes 6 (4 storage + 2 uptime
-    seconds) and adds 7 (device_mac, device_type, device_id,
-    firmware_release_date, encoder_version, encoder_release_date,
-    memory_available_mb). Net: 25 sensors.
+    """Sanity check the sensor count is in a reasonable range
+    after the v0.6.17 / v0.6.18 churn (deletions + re-adds +
+    streaming-detail expansion).
     """
     keys = _sensor_keys()
-    # 4 storage + 2 second-uptime + 4 per-channel = 10 deletions,
-    # + 7 new = net 23 (a few per-channel ones survived).
-    # We just confirm we're in a reasonable range; the exact
-    # number depends on per-channel status endpoint coverage.
-    assert 15 <= len(keys) <= 28, (
-        f"unexpected sensor count after v0.6.17: {len(keys)} sensors"
+    assert 15 <= len(keys) <= 35, (
+        f"unexpected sensor count after v0.6.18: {len(keys)} sensors"
     )
 
 
 # ---- manifest version ----
 
 
-def test_v0617_manifest_version_bumped():
+def test_v0617_manifest_version_at_or_beyond():
+    """v0.6.17 anchor; later releases (v0.6.18+) bump further."""
     manifest = json.loads(Path(
         r"C:\Users\43457\Desktop\hikvision-isapi"
         r"\custom_components\hikvision_isapi_performance\manifest.json"
     ).read_text(encoding="utf-8"))
-    assert manifest["version"] == "0.6.17"
+    parts = manifest["version"].split(".")
+    assert parts[0] == "0"
+    assert int(parts[1]) >= 6
+    if int(parts[1]) == 6:
+        assert int(parts[2]) >= 17
