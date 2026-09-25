@@ -50,6 +50,62 @@ _LOGGER = logging.getLogger(__name__)
 DEVICE_TIME_ABNORMAL_THRESHOLD_SECONDS = 24 * 60 * 60
 
 
+def _memory_calibration_anomalous(
+    memory_usage_mb: str | None,
+    memory_available_mb: str | None,
+) -> bool | None:
+    """Detect likely KB/MB mis-calibration that survived ``_parse_system_status``.
+
+    v0.6.29: surfaces the v0.6.25 mixed-unit heuristic as a HA
+    binary sensor so users can spot devices where the memory
+    numbers look wrong without grepping coordinator logs.
+
+    Inputs are the post-normalisation MB values from
+    ``system_status["memoryUsage"]`` and
+    ``system_status["memoryAvailable"]`` (both normalised to MB
+    by ``_parse_system_status``). The v0.6.25 heuristic already
+    fixes the V5 IPC's KB/MB mismatch upstream — this function
+    catches the cases that fall through:
+
+    - either field is missing / unparseable → ``None`` (unknown)
+    - both fields are zero / one is zero → ``None`` (unknown)
+    - ratio outside [0.1, 50] → ``True`` (anomalous)
+    - any absolute value > 8 GiB → ``True`` (Hikvision devices
+      don't have more than ~4-8 GiB RAM)
+
+    Crucially: this is a *diagnostic*, not a fix. We do NOT
+    modify ``_parse_system_status``'s normalisation based on
+    this signal — surfacing a wrong number as "anomalous" lets
+    the user inspect the device rather than silently masking the
+    unit issue with a second heuristic (which itself could be
+    wrong on a different firmware generation).
+    """
+    try:
+        used = int(memory_usage_mb) if memory_usage_mb else 0
+        avail = int(memory_available_mb) if memory_available_mb else 0
+    except (TypeError, ValueError):
+        return None
+    if used == 0 or avail == 0:
+        # Insufficient data to judge. Distinguish "unknown" from
+        # "looks plausible" — a device reporting 0 used with 0
+        # available could just be mid-restart; we don't flag it.
+        return None
+    if avail > used * 50:
+        # ~22 years worth of free RAM for 61 MB used → definitely
+        # mixed units or a parser bug. The v0.6.25 heuristic
+        # already handled the common case; this is the fallback.
+        return True
+    if avail < used * 0.1:
+        # Used > 10x available → impossible on real hardware
+        # (Linux kernel would OOM long before).
+        return True
+    if used > 8192 or avail > 8192:
+        # Hikvision's largest cameras top out at 4-8 GiB. Anything
+        # > 8 GiB is parser garbage, not real memory.
+        return True
+    return False
+
+
 def _dev_time_abnormal(
     current_device_time: str | None,
     now_utc: datetime | None = None,
@@ -112,6 +168,11 @@ async def async_setup_entry(
         # Device class PROBLEM so the entity shows up red on the device
         # card and works out-of-the-box with HA's "problem" automations.
         HikvisionISAPIDevTimeAbnormalBinarySensor(coordinator, entry),
+        # v0.6.29: diagnostic — ON when memory numbers look like a
+        # KB/MB mis-calibration. User-visible so obscure firmware
+        # quirks (where the v0.6.25 heuristic didn't fire) are
+        # surfaced on the device card instead of buried in logs.
+        HikvisionISAPIMemCalibrationWarnBinarySensor(coordinator, entry),
     ]
     for ch in coordinator.channels:
         entities.extend(_entities_for_channel(coordinator, entry, ch))
@@ -360,4 +421,42 @@ class HikvisionISAPIDevTimeAbnormalBinarySensor(
             return None
         return _dev_time_abnormal(
             self.coordinator.data.system_status.get("currentDeviceTime")
+        )
+
+class HikvisionISAPIMemCalibrationWarnBinarySensor(
+    HikvisionISAPIEntity, BinarySensorEntity
+):
+    """Memory unit calibration diagnostic (v0.6.29).
+
+    ON when ``memoryUsage`` and ``memoryAvailable`` from
+    ``/System/status`` look like the device's firmware is mixing
+    KB and MB units (or some other parser pathology). Pre-v0.6.29
+    users had to grep coordinator logs to find such devices; now
+    they show up as a red PROBLEM entity on the device card.
+
+    Crucially this is a *diagnostic*, not a fix — see
+    ``_memory_calibration_anomalous`` docstring for why we don't
+    auto-recalibrate (a second heuristic could itself be wrong on
+    a different firmware generation).
+    """
+
+    _attr_translation_key = "mem_calibration_warn"
+    _attr_device_class = BinarySensorDeviceClass.PROBLEM
+
+    def __init__(
+        self,
+        coordinator: HikvisionISAPICoordinator,
+        entry: ConfigEntry,
+    ) -> None:
+        super().__init__(coordinator, entry)
+        self._attr_unique_id = f"{entry.entry_id}_mem_calibration_warn"
+        self._attr_name = "内存换算疑似异常"
+
+    @property
+    def is_on(self) -> bool | None:
+        if self.coordinator.data is None:
+            return None
+        return _memory_calibration_anomalous(
+            self.coordinator.data.system_status.get("memoryUsage"),
+            self.coordinator.data.system_status.get("memoryAvailable"),
         )

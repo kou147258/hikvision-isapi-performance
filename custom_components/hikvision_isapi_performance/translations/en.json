@@ -98,7 +98,8 @@
       "channel_recording": {"name": "Recording"},
       "channel_motion": {"name": "Motion Detected"},
       "device_online": {"name": "Device Online"},
-      "dev_time_abnormal": {"name": "Device Time Abnormal"}
+      "dev_time_abnormal": {"name": "Device Time Abnormal"},
+      "mem_calibration_warn": {"name": "Memory Calibration Suspect"}
     }
   }
 }

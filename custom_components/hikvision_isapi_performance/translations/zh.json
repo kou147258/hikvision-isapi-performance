@@ -98,7 +98,8 @@
       "channel_recording": {"name": "录像中"},
       "channel_motion": {"name": "运动检测"},
       "device_online": {"name": "设备在线"},
-      "dev_time_abnormal": {"name": "设备时间异常"}
+      "dev_time_abnormal": {"name": "设备时间异常"},
+      "mem_calibration_warn": {"name": "内存换算疑似异常"}
     }
   }
 }
