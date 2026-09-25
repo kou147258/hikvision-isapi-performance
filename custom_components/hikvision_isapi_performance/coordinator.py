@@ -912,6 +912,13 @@ class HikvisionISAPICoordinator(DataUpdateCoordinator[HikvisionISAPIData]):
         self.network_interfaces: list[dict[str, Any]] = []
         self.streaming_bitrate_kbps: dict[str, int] = {}
         self.streaming_channel_detail: dict[str, Any] = {}
+        # v0.6.24: initialize device_type to empty string in __init__
+        # so platforms (sensor.async_setup_entry) can read it
+        # BEFORE the first coordinator refresh completes. The
+        # actual value lands via ``self.device_type = ...`` inside
+        # ``_async_update_data`` after the first parse, but
+        # platforms need a default for their filter logic.
+        self.device_type: str = ""
 
     @property
     def host(self) -> str:
