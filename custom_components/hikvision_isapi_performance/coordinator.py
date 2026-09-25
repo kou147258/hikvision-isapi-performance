@@ -1089,12 +1089,30 @@ class HikvisionISAPICoordinator(DataUpdateCoordinator[HikvisionISAPIData]):
     async def _fetch_streaming(
         self, client: ISAPIClient,
     ) -> ET.Element | None:
+        """``GET /ISAPI/Streaming/channels`` for per-channel streaming
+        detail (codec / resolution / framerate / audio).
+
+        v0.6.22: changed from ``/Streaming/channels/1`` (per-channel
+        config endpoint, returned a single ``<StreamingChannel>``
+        without the nested ``<Video>``/``<Audio>`` blocks on V5 IPC)
+        to the LIST endpoint ``/Streaming/channels`` (returns
+        ``<StreamingChannelList><StreamingChannel>...</StreamingChannel>
+        </StreamingChannelList>``). The list endpoint has the nested
+        ``<Video>``/``<Audio>`` blocks per channel, which is what
+        ``_parse_streaming_detail`` reads.
+
+        Pre-v0.6.22 the per-channel endpoint returned XML without
+        nested video blocks → every codec/resolution/frame-rate/
+        audio sensor showed "unknown" on the user's V5 IPC
+        (``DS-FB2127``) even though the data was available on the
+        list endpoint.
+        """
         try:
-            return await client.get_xml(f"{ISAPI_STREAMING_CHANNELS}/1")
+            return await client.get_xml(ISAPI_STREAMING_CHANNELS)
         except (ISAPIError, ISAPIAuthError, ISAPIConnectionError) as exc:
             _LOGGER.info(
-                "%s /ISAPI/Streaming/channels/1 failed: %s",
-                self._host, exc,
+                "%s %s failed: %s",
+                self._host, ISAPI_STREAMING_CHANNELS, exc,
             )
             return None
 
@@ -1272,6 +1290,14 @@ class HikvisionISAPICoordinator(DataUpdateCoordinator[HikvisionISAPIData]):
             storage_xml = await self._fetch_storage(client)
             network_xml = await self._fetch_network_interfaces(client)
             streaming_xml = await self._fetch_streaming(client)
+            # v0.6.22: _fetch_time was previously called AFTER the
+            # `async with` block, by which point ``client`` had been
+            # closed via ``__aexit__`` → ``aclose()``. The closed
+            # httpx session raised errors that ``_fetch_time``'s
+            # try/except caught (silent), so time_mode always
+            # returned None → "unknown". Move the call inside the
+            # block while we still have a live client.
+            time_xml = await self._fetch_time(client)
 
         # Channels parser-routing logic moved below; we now have
         # the raw XML and need to pick the right parser based on
@@ -1298,7 +1324,6 @@ class HikvisionISAPICoordinator(DataUpdateCoordinator[HikvisionISAPIData]):
         # both this and the bitrate dict above.
         streaming_channel_detail = _parse_streaming_detail(streaming_xml)
         # v0.6.19: device clock / NTP / timezone info.
-        time_xml = await self._fetch_time(client)
         time_info = _parse_time(time_xml)
 
         # v0.6.15: refresh summary log. One INFO line per refresh

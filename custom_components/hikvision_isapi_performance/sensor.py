@@ -166,12 +166,18 @@ SENSORS: tuple[HikvisionISAPISensorDescription, ...] = (
         key="memory_available_mb",
         translation_key="memory_available",
         name="内存剩余 (MB)",
-        native_unit_of_measurement=UnitOfTime.SECONDS,
-        device_class=SensorDeviceClass.DATA_SIZE,
+        native_unit_of_measurement=UnitOfInformation.MEGABYTES,
         state_class=SensorStateClass.MEASUREMENT,
         icon="mdi:memory",
         # Raw available memory in MB, useful for monitoring
-        # trend (capacity-constrained IPCs).
+        # trend (capacity-constrained IPCs). v0.6.22: dropped the
+        # ``DATA_SIZE`` device class and the
+        # ``UnitOfTime.SECONDS`` unit — both were a v0.6.17-era
+        # copy-paste bug. The value is in MB, not bytes; using
+        # DATA_SIZE made HA treat the raw integer as bytes (and
+        # render it as "402 s" because the native_unit was
+        # ``UnitOfTime.SECONDS``). Plain MEGABYTES native_unit
+        # with no device_class gives "402 MB" cleanly.
         value_fn=lambda d: _safe_int(d.system_status.get("memoryAvailable")),
     ),
     HikvisionISAPISensorDescription(
@@ -487,10 +493,32 @@ async def async_setup_entry(
     entry: ConfigEntry,
     async_add_entities: AddEntitiesCallback,
 ) -> None:
-    """Set up static ISAPI sensors (model, firmware, cpu, memory, etc.)."""
+    """Set up static ISAPI sensors (model, firmware, cpu, memory, etc.).
+
+    v0.6.22: storage sensors (4 entities) are registered only when
+    ``coordinator.device_type`` is NVR or DVR. IPCs have no HDD,
+    so the storage endpoints return 4 "Invalid Operation" on the
+    user's V5 IPC (``DS-FB2127``) — registering the sensors on IPC
+    showed 3-4 permanently-unknown entities cluttering the device
+    card. NVR/DVR storage sensors remain registered even on
+    firmware that 4xx's the endpoints (V4 NVR users still see
+    "unknown" — gracefully degraded, not a hard error).
+    """
+    from .const import (
+        DEVICE_TYPE_DVR,
+        DEVICE_TYPE_NETWORK_VIDEO_RECORDER,
+    )
+
     coordinator: HikvisionISAPICoordinator = hass.data[DOMAIN][entry.entry_id]
+    device_type = coordinator.device_type
+    # Storage sensors are useful only on NVR/DVR. Skip on IPC.
+    is_recorder = device_type in (
+        DEVICE_TYPE_NETWORK_VIDEO_RECORDER, DEVICE_TYPE_DVR,
+    )
     entities = [
-        HikvisionISAPISensor(coordinator, entry, desc) for desc in SENSORS
+        HikvisionISAPISensor(coordinator, entry, desc)
+        for desc in SENSORS
+        if is_recorder or not desc.key.startswith("storage_")
     ]
     async_add_entities(entities)
 
