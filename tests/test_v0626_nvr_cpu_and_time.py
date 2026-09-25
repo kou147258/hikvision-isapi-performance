@@ -163,81 +163,71 @@ def _read_sensor_setup_entities(sensor_path: Path) -> str:
 
 
 def test_v0626_nvr_cpu_usage_suppressed_at_setup_level():
-    """NVR/DVR (``is_recorder=True``) must skip the ``cpu_usage`` sensor.
+    """V4 firmware NVR/DVR must skip the ``cpu_usage`` sensor.
 
-    Pre-v0.6.26 every device got ``cpu_usage`` registered. V4 NVRs
-    report ``cpuUtilization=0`` due to a firmware bug — surfacing
-    this as "0% CPU" let users miss real high-CPU conditions.
-    v0.6.26: the ``async_setup_entry`` filter rejects the
-    description on NVR/DVR. IPC keeps the sensor.
+    v0.6.26 (first cut): every NVR/DVR suppressed cpu_usage.
+    User feedback: V5+ NVRs report ``cpuUtilization`` correctly;
+    only V4 firmware has the documented ``cpuUtilization=0`` bug.
+    v0.6.27 (revert): filter on V4 firmware version, not on
+    ``is_recorder`` alone. IPC keeps the sensor.
     """
     sensor_path = (
         _INTEGRATION_ROOT / "sensor.py"
     )
     src = _read_sensor_setup_entities(sensor_path)
-    # The filter must mention BOTH ``cpu_usage`` and ``is_recorder``
-    # inside the ``entities = [...]`` list comprehension.
-    # We accept either an inline ``desc.key != "cpu_usage"`` guard
-    # or a separate exclusion — what matters is the keyword pairing.
     assert "cpu_usage" in src, (
-        "v0.6.26: sensor.py should reference cpu_usage in setup "
-        "(to suppress it on NVR/DVR). If you removed cpu_usage "
+        "v0.6.27: sensor.py should reference cpu_usage in setup "
+        "(to suppress it on V4 NVR). If you removed cpu_usage "
         "entirely, you broke IPC users."
     )
-    # The list-comprehension filter MUST have a clause that
-    # excludes ``cpu_usage`` when ``is_recorder`` is True.
-    # Match: ``and (not is_recorder or desc.key != "cpu_usage")``
-    # or any equivalent condition that pairs both tokens.
-    list_comp_match = re.search(
-        r"entities\s*:\s*list\[HikvisionISAPISensor\]\s*=\s*\[\s*(.*?)\]",
+    # The cpu_usage filter lives inside the ``for desc in nic1_descs``
+    # list comprehension. Find that block (other ``entities: list[...]``
+    # occurrences are empty initialisers for per_channel_entities /
+    # listener-side tracking — those would falsely match a non-greedy
+    # regex because they're ``= []``).
+    comp_match = re.search(
+        r"entities\s*:\s*list\[HikvisionISAPISensor\]\s*=\s*\[\s*HikvisionISAPISensor\(coordinator, entry, desc\)\s*\n\s*for desc in nic1_descs\s*\n\s*if\s*\((.*?)\)\s*\]",
         src,
         re.DOTALL,
     )
-    assert list_comp_match, "entities list comprehension not found"
-    body = list_comp_match.group(1)
+    assert comp_match, "entities list comprehension (nic1_descs) not found"
+    body = comp_match.group(1)
     assert "cpu_usage" in body, (
-        "v0.6.26: cpu_usage must be filtered out inside the "
-        "entities list comprehension (skip on NVR/DVR)."
+        "v0.6.27: cpu_usage must be filtered out inside the "
+        "entities list comprehension (skip on V4 firmware NVR/DVR)."
     )
-    assert "is_recorder" in body, (
-        "v0.6.26: the cpu_usage filter must be guarded by "
-        "is_recorder so IPC retains the sensor."
+    # The filter must be firmware-aware: it must consult
+    # ``firmwareVersion`` (so V5+ NVR keeps the sensor) and
+    # expose the combined flag ``is_v4_recorder``.
+    assert "firmwareVersion" in src, (
+        "v0.6.27: async_setup_entry must read firmwareVersion "
+        "to distinguish V4 (suppress) from V5+ (keep) NVR."
+    )
+    assert "is_v4_recorder" in src, (
+        "v0.6.27: the cpu_usage filter must use is_v4_recorder "
+        "(is_recorder AND firmwareVersion startswith 'V4')."
     )
 
 
 def test_v0626_ipc_cpu_usage_still_registered():
-    """IPC (``is_recorder=False``) must keep the ``cpu_usage`` sensor.
-
-    The filter in async_setup_entry must allow ``cpu_usage``
-    through when the device is an IPC. Verify by simulating the
-    filter: if ``is_recorder=False`` then ``cpu_usage`` description
-    survives; if ``is_recorder=True`` then it's dropped.
-    """
-    # Static check: the filter expression must be such that
-    # ``is_recorder=False`` allows ``cpu_usage`` through.
+    """IPC (``is_recorder=False``) must keep the ``cpu_usage`` sensor."""
     sensor_src = (
         _INTEGRATION_ROOT / "sensor.py"
     ).read_text(encoding="utf-8-sig")
-    list_comp_match = re.search(
-        r"entities\s*:\s*list\[HikvisionISAPISensor\]\s*=\s*\[\s*(.*?)\]",
+    comp_match = re.search(
+        r"entities\s*:\s*list\[HikvisionISAPISensor\]\s*=\s*\[\s*HikvisionISAPISensor\(coordinator, entry, desc\)\s*\n\s*for desc in nic1_descs\s*\n\s*if\s*\((.*?)\)\s*\]",
         sensor_src,
         re.DOTALL,
     )
-    assert list_comp_match
-    body = list_comp_match.group(1)
-    # The exact v0.6.26 filter is:
-    #   if (
-    #     (is_recorder or not desc.key.startswith("storage_"))
-    #     and (not is_recorder or desc.key != "cpu_usage")
-    #   )
-    # For IPC (is_recorder=False):
-    #   - storage filter: (False or not True) = False → storage
-    #     sensors excluded (correct).
-    #   - cpu filter: (True or desc.key != "cpu_usage") = True → cpu
-    #     sensor included (correct).
-    assert "not is_recorder" in body or "is_recorder or" in body, (
-        "v0.6.26: filter must use is_recorder to allow "
-        "cpu_usage on IPC while excluding it on NVR/DVR."
+    assert comp_match, "entities list comprehension (nic1_descs) not found"
+    body = comp_match.group(1)
+    # v0.6.27 filter: ``not is_v4_recorder or desc.key != "cpu_usage"``.
+    # For IPC (is_recorder=False, is_v4_recorder=False):
+    #   - cpu filter: (True or X) = True → cpu sensor included.
+    assert "not is_v4_recorder" in body, (
+        "v0.6.27: filter must use is_v4_recorder to allow "
+        "cpu_usage on IPC + V5+ NVR while only excluding it "
+        "on V4 firmware NVR/DVR."
     )
 
 

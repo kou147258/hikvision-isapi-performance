@@ -243,7 +243,10 @@ SENSORS: tuple[HikvisionISAPISensorDescription, ...] = (
         name="网卡 MTU",
         icon="mdi:network",
         state_class=SensorStateClass.MEASUREMENT,
-        native_unit_of_measurement="B",
+        # v0.6.27: drop the trailing "B" suffix. MTU is a unitless
+        # byte count — HA displays raw integers without unit if
+        # ``native_unit_of_measurement`` isn't set, which is what
+        # the user asked for ("just a number, no B").
         # v0.6.19: read first interface MTU. V5 wraps MTU inside
         # ``<Link>`` (alongside MAC), V4 puts it directly on the
         # interface. _parse_network_interfaces handles both.
@@ -295,7 +298,8 @@ SENSORS: tuple[HikvisionISAPISensorDescription, ...] = (
         name="网卡 2 MTU",
         icon="mdi:network",
         state_class=SensorStateClass.MEASUREMENT,
-        native_unit_of_measurement="B",
+        # v0.6.27: same as network_mtu — drop the trailing "B"
+        # suffix so HA displays the raw integer.
         value_fn=lambda d: _second_iface(d, "mtu"),
     ),
     # ---- device clock (from /ISAPI/System/time, v0.6.19) ----
@@ -358,55 +362,24 @@ SENSORS: tuple[HikvisionISAPISensorDescription, ...] = (
         icon="mdi:harddisk",
         value_fn=lambda d: _storage_usage_pct(d.storage),
     ),
-    # ---- video encoding / streaming detail (v0.6.18) ----
-    # Per-channel codec, resolution, frame rate. Populated from
-    # ``/ISAPI/Streaming/channels`` (V5 IPCs). V4 NVR firmware
-    # mostly returns 4 on this endpoint so these sensors stay
-    # "unknown" on the user's NVR fleet.
-    HikvisionISAPISensorDescription(
-        key="channel_1_video_codec",
-        translation_key="channel_1_video_codec",
-        name="通道 1 视频编码",
-        icon="mdi:codec",
-        value_fn=lambda d: _or_none(d.streaming_channel_detail.get("video_codec")),
-    ),
-    HikvisionISAPISensorDescription(
-        key="channel_1_video_resolution",
-        translation_key="channel_1_video_resolution",
-        name="通道 1 分辨率",
-        icon="mdi:aspect-ratio",
-        value_fn=lambda d: _or_none(d.streaming_channel_detail.get("video_resolution")),
-    ),
-    HikvisionISAPISensorDescription(
-        key="channel_1_video_frame_rate",
-        translation_key="channel_1_video_frame_rate",
-        name="通道 1 帧率",
-        device_class=SensorDeviceClass.FREQUENCY,
-        state_class=SensorStateClass.MEASUREMENT,
-        native_unit_of_measurement="fps",
-        icon="mdi:speedometer",
-        # Hikvision reports maxFrameRate in hundredths-of-fps
-        # (1600 = 16 fps, 3000 = 30 fps); _parse_streaming_detail
-        # has already divided by 100.
-        value_fn=lambda d: d.streaming_channel_detail.get("video_frame_rate"),
-    ),
-    HikvisionISAPISensorDescription(
-        key="channel_1_video_bitrate",
-        translation_key="channel_1_video_bitrate",
-        name="通道 1 码率",
-        device_class=SensorDeviceClass.DATA_RATE,
-        state_class=SensorStateClass.MEASUREMENT,
-        native_unit_of_measurement="kbps",
-        icon="mdi:video",
-        value_fn=lambda d: d.streaming_channel_detail.get("video_bitrate_kbps"),
-    ),
-    HikvisionISAPISensorDescription(
-        key="channel_1_audio_codec",
-        translation_key="channel_1_audio_codec",
-        name="通道 1 音频编码",
-        icon="mdi:music-clef",
-        value_fn=lambda d: _or_none(d.streaming_channel_detail.get("audio_codec")),
-    ),
+    # ---- per-channel streaming detail (v0.6.18 / v0.6.27) ----
+    # Per-channel codec, resolution, frame rate, bitrate, audio codec,
+    # AND channel name. Populated from
+    # ``/ISAPI/Streaming/channels`` (V5 IPCs and V5+ NVRs). V4 NVR
+    # firmware usually returns 4 on this endpoint so these sensors
+    # stay "unknown" on V4 NVRs — that's fine, V4 NVRs expose the
+    # info via different endpoints we don't poll yet.
+    #
+    # v0.6.27: previously only ``channel_1_*`` sensors were emitted
+    # (5 entities for the first channel only). Users with NVRs that
+    # have 8/16/32 channels only saw channel 1's codec/resolution.
+    # Now all detected channels get the same 6 sensors. The dynamic
+    # generation happens in ``async_setup_entry`` below — the static
+    # ``channel_1_*`` entries are gone, but the new generator emits
+    # the SAME key for channel id="1" so users' existing entity
+    # registry entries (created under v0.6.18–v0.6.26) match
+    # seamlessly without orphaned-entity cleanup.
+    # ----
     # ---- reboot count (V4 NVR doesn't return this; V5 IPC does) ----
     HikvisionISAPISensorDescription(
         key="reboot_count",
@@ -589,35 +562,65 @@ async def async_setup_entry(
         DEVICE_TYPE_NETWORK_VIDEO_RECORDER, DEVICE_TYPE_DVR,
     )
 
+    # v0.6.27: only suppress the ``cpu_usage`` sensor on V4
+    # firmware NVR/DVR. Pre-v0.6.26 this was suppressed on every
+    # NVR/DVR, but V5/V6/V7 NVR firmware reports the NVR's own
+    # CPU correctly — only the V4 firmware family has the
+    # documented ``cpuUtilization=0`` bug. Detect via the
+    # ``firmwareVersion`` field (e.g. "V4.1.18" → V4, "V5.2.2"
+    # → keep, "V4.62.000" → V4). The check is ``startswith("V4")``
+    # case-insensitive; we tolerate leading whitespace from the
+    # device's XML.
+    firmware_version = (
+        coordinator.device_info.get("firmwareVersion", "") or ""
+    ).strip().upper()
+    is_v4_recorder = is_recorder and firmware_version.startswith("V4")
+
     # NIC 2 sensors are useful only when the device has >=2
     # network interfaces. Check synchronously first (data may
     # already be available from a previous coordinator refresh);
     # otherwise listen for late arrival.
     nic2_descs = tuple(d for d in SENSORS if d.key.startswith("network_2_"))
 
+    # Per-channel streaming detail + name sensors (v0.6.27).
+    # v0.6.18 added 5 static ``channel_1_*`` sensors; users with
+    # NVRs (8/16/32 channels) only saw channel 1's codec/
+    # resolution/etc. Now we generate the same 6 entities per
+    # channel dynamically. The static entries for channel 1 are
+    # gone (the dynamic generator emits identical keys for
+    # ``id == "1"`` so existing entity registry entries match
+    # without orphaned-entity cleanup).
+    per_channel_entities: list[HikvisionISAPISensor] = []
+    for ch in coordinator.channels:
+        per_channel_entities.extend(
+            _build_per_channel_entities(coordinator, entry, ch)
+        )
+    # Track which channels we already registered so the late-
+    # arrival listener doesn't duplicate them.
+    coordinator._hikvision_isapi_performance_channel_added_ids = [
+        ch.get("id", "") for ch in coordinator.channels
+    ]  # type: ignore[attr-defined]
+
+    # NIC 1 = everything except network_2_* and channel_*_* (the
+    # latter are emitted per-channel above).
     nic1_descs = tuple(
         d for d in SENSORS
         if not d.key.startswith("network_2_")
+        and not d.key.startswith("channel_")
     )
 
-    # v0.6.26: V4 NVR/DVR firmware returns ``cpuUtilization=0`` for
-    # its own CPU (not the mounted IPC channels) — a firmware bug
-    # documented in Hikvision's release notes. Registering the
-    # ``cpu_usage`` sensor on a NVR/DVR would surface a permanent
-    # "0%" reading, which is worse than not registering it: the
-    # user assumes the NVR is idle when it may actually be heavily
-    # loaded, breaking any alert thresholds.
-    #
-    # Skip the sensor entirely on NVR/DVR. IPC keeps the sensor
-    # because their CPU readings are reliable.
     entities: list[HikvisionISAPISensor] = [
         HikvisionISAPISensor(coordinator, entry, desc)
         for desc in nic1_descs
         if (
+            # storage filter: storage sensors only on NVR/DVR
             (is_recorder or not desc.key.startswith("storage_"))
-            and (not is_recorder or desc.key != "cpu_usage")
+            # cpu_usage filter: only suppress on V4 firmware NVR/DVR
+            and (not is_v4_recorder or desc.key != "cpu_usage")
         )
     ]
+    # Append per-channel entities (built above).
+    entities.extend(per_channel_entities)
 
     # Add NIC 2 entities synchronously if the coordinator already
     # has the second interface data.
@@ -638,6 +641,13 @@ async def async_setup_entry(
         coordinator.async_add_listener(
             _make_nic2_listener(hass, entry, coordinator, async_add_entities, nic2_descs),
         )
+
+    # Late-arrival listener for per-channel sensors. If the first
+    # coordinator refresh didn't yet return channel data, register
+    # the entities on the next refresh that does.
+    coordinator.async_add_listener(
+        _make_per_channel_listener(hass, entry, coordinator, async_add_entities),
+    )
 
 
 def _make_nic2_listener(
@@ -661,6 +671,191 @@ def _make_nic2_listener(
         async_add_entities(
             [HikvisionISAPISensor(coordinator, entry, d) for d in nic2_descs],
         )
+
+    return _on_update
+
+
+# v0.6.27: per-channel streaming-detail + name sensors.
+#
+# Builds the 6 sensors for one channel (codec, resolution, frame
+# rate, bitrate, audio codec, name). The keys all carry the channel
+# id (``channel_<id>_video_codec`` etc.) so users with NVRs that
+# have 8/16/32 channels get the same set of entities for each
+# channel — not just channel 1 like v0.6.18–v0.6.26 did.
+#
+# ``value_fn`` closures capture ``channel_id`` so each sensor only
+# reads its own channel's data from ``streaming_channel_detail``.
+# On devices that don't expose the streaming endpoint (V4 NVRs
+# usually 4xx on ``/ISAPI/Streaming/channels``), the fields stay
+# ``None`` and the entities render "unknown".
+
+
+def _channel_streaming_field(channel_id: str, field: str):
+    """Build a ``value_fn`` that reads ``field`` from a specific channel.
+
+    v0.6.27: applies ``_or_none`` to string-typed fields so empty
+    / whitespace XML cells render as ``None`` (→ "unknown") in HA
+    rather than as a blank cell — the v0.6.19 audit test pins this
+    behaviour for the original ``channel_1_*`` static sensors and
+    we want the dynamic per-channel generator to do the same.
+    Numeric fields (frame_rate / bitrate_kbps) pass through
+    unchanged because ``_or_none`` is type-checked for strings.
+    """
+    string_fields = {"video_codec", "video_resolution", "audio_codec"}
+    use_or_none = field in string_fields
+
+    def _fn(data) -> Any:
+        if data is None:
+            return None
+        for ch in data.streaming_channel_detail.get("channels", []) or []:
+            if ch.get("id") == channel_id:
+                value = ch.get(field)
+                return _or_none(value) if use_or_none else value
+        # Fallback: if the per-channel list doesn't include this
+        # id (e.g. the parser collapsed it), the legacy
+        # ``first_channel`` shape is still useful for channel 1
+        # only.
+        if channel_id == "1" or str(channel_id) == str(
+            data.streaming_channel_detail.get("first_channel_id")
+        ):
+            value = data.streaming_channel_detail.get(field)
+            return _or_none(value) if use_or_none else value
+        return None
+    return _fn
+
+
+def _channel_name_value(channel_id: str):
+    """Read the human-readable name of a channel from coordinator data."""
+    def _fn(data) -> Any:
+        if data is None:
+            return None
+        for ch in data.channels:
+            if ch.get("id") == channel_id:
+                name = ch.get("name")
+                return _or_none(name) or f"Channel {channel_id}"
+        return f"Channel {channel_id}"
+    return _fn
+
+
+def _build_per_channel_entities(
+    coordinator: HikvisionISAPICoordinator,
+    entry: ConfigEntry,
+    channel: dict[str, Any],
+) -> list[HikvisionISAPISensor]:
+    """Build the 6 per-channel sensors for one channel dict.
+
+    Returns HikvisionISAPISensor instances (not descriptions) so
+    callers can append directly to ``async_add_entities``.
+
+    Channel name comes from the coordinator's ``channels`` list
+    (which already has the friendly name from the deviceInfo
+    endpoint); codec/resolution/etc. come from
+    ``streaming_channel_detail["channels"]``.
+    """
+    channel_id = str(channel.get("id", "")).strip() or "1"
+    # Default-name fallback when the device doesn't return one.
+    default_name = channel.get("name") or f"Channel {channel_id}"
+
+    # Translation keys are SHARED across all channels (e.g.
+    # ``channel_video_codec``). The entity's display name
+    # carries the channel number. HA looks up translations by
+    # translation_key so we reuse the same template for every
+    # channel — only the entity name (rendered by HA's
+    # ``_attr_name``) varies.
+    descs = [
+        HikvisionISAPISensorDescription(
+            key=f"channel_{channel_id}_video_codec",
+            translation_key="channel_video_codec",
+            name=f"通道 {channel_id} 视频编码",
+            icon="mdi:codec",
+            value_fn=_channel_streaming_field(channel_id, "video_codec"),
+        ),
+        HikvisionISAPISensorDescription(
+            key=f"channel_{channel_id}_video_resolution",
+            translation_key="channel_video_resolution",
+            name=f"通道 {channel_id} 分辨率",
+            icon="mdi:aspect-ratio",
+            value_fn=_channel_streaming_field(channel_id, "video_resolution"),
+        ),
+        HikvisionISAPISensorDescription(
+            key=f"channel_{channel_id}_video_frame_rate",
+            translation_key="channel_video_frame_rate",
+            name=f"通道 {channel_id} 帧率",
+            device_class=SensorDeviceClass.FREQUENCY,
+            state_class=SensorStateClass.MEASUREMENT,
+            native_unit_of_measurement="fps",
+            icon="mdi:speedometer",
+            value_fn=_channel_streaming_field(channel_id, "video_frame_rate"),
+        ),
+        HikvisionISAPISensorDescription(
+            key=f"channel_{channel_id}_video_bitrate",
+            translation_key="channel_video_bitrate",
+            name=f"通道 {channel_id} 码率",
+            device_class=SensorDeviceClass.DATA_RATE,
+            state_class=SensorStateClass.MEASUREMENT,
+            native_unit_of_measurement="kbps",
+            icon="mdi:video",
+            value_fn=_channel_streaming_field(channel_id, "video_bitrate_kbps"),
+        ),
+        HikvisionISAPISensorDescription(
+            key=f"channel_{channel_id}_audio_codec",
+            translation_key="channel_audio_codec",
+            name=f"通道 {channel_id} 音频编码",
+            icon="mdi:music-clef",
+            value_fn=_channel_streaming_field(channel_id, "audio_codec"),
+        ),
+        HikvisionISAPISensorDescription(
+            key=f"channel_{channel_id}_name",
+            translation_key="channel_name",
+            name=f"通道 {channel_id} 名称",
+            icon="mdi:tag",
+            value_fn=_channel_name_value(channel_id),
+        ),
+    ]
+    return [
+        HikvisionISAPISensor(coordinator, entry, desc) for desc in descs
+    ]
+
+
+def _make_per_channel_listener(
+    hass: HomeAssistant,
+    entry: ConfigEntry,
+    coordinator: HikvisionISAPICoordinator,
+    async_add_entities: AddEntitiesCallback,
+):
+    """Listener: register per-channel sensors when channels arrive late.
+
+    Mirrors the NIC 2 listener pattern. Tracks the channel ids we
+    already registered so we don't double-register after a reload
+    or duplicate the sync block.
+    """
+    already_ids: set[str] = set(
+        getattr(
+            coordinator,
+            "_hikvision_isapi_performance_channel_added_ids",
+            [],
+        ) or []
+    )
+
+    async def _on_update() -> None:
+        current_ids = {
+            str(ch.get("id", "")) for ch in coordinator.channels
+        }
+        new_ids = current_ids - already_ids
+        if not new_ids:
+            return
+        new_entities: list[HikvisionISAPISensor] = []
+        for ch in coordinator.channels:
+            if str(ch.get("id", "")) in new_ids:
+                new_entities.extend(
+                    _build_per_channel_entities(coordinator, entry, ch)
+                )
+        if new_entities:
+            already_ids.update(new_ids)
+            coordinator._hikvision_isapi_performance_channel_added_ids = (
+                list(already_ids)
+            )  # type: ignore[attr-defined]
+            async_add_entities(new_entities)
 
     return _on_update
 

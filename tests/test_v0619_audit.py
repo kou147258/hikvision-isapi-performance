@@ -179,31 +179,63 @@ def test_v0619_removes_encoder_release_date_sensor():
 
 
 def test_v0619_string_sensors_use_or_none():
-    """String-reading sensors apply ``_or_none`` to suppress empty cells."""
+    """String-reading sensors apply ``_or_none`` to suppress empty cells.
+
+    v0.6.19: original test pinned ``_or_none(d.streaming_channel_detail
+    .get("video_codec"))`` directly in the static ``channel_1_*``
+    sensor descriptions.
+
+    v0.6.27: those static entries were removed (per-channel sensors
+    are now dynamic). The string normalization moved into
+    ``_channel_streaming_field`` which applies ``_or_none`` to all
+    string-typed fields. Verify the new path also normalises empty
+    strings so the v0.6.19 behaviour is preserved for users on
+    v0.6.27+.
+    """
     src = _SENSOR_SRC.read_text(encoding="utf-8-sig")
     # A few representative string sensors — every one must call _or_none
     # on its device_info/network/streaming-channel-detail string read.
-    for snippet in (
+    direct_checks = [
         'd.device_info.get("model")',
         'd.device_info.get("serialNumber")',
         'd.device_info.get("firmwareVersion")',
         'd.device_info.get("encoderVersion")',
-        'd.streaming_channel_detail.get("video_codec")',
-        'd.streaming_channel_detail.get("audio_codec")',
         'd.time_info.get("time_mode")',
-    ):
-        # Find the line containing this snippet (truncated for context)
-        line_prefix = snippet.split("(")[0]
-        # Search: must appear inside a `_or_none(...)` call somewhere
-        # in the file. We allow both .get("...") and other forms.
-        assert (
-            f"_or_none({snippet})" in src
-            or f"_or_none(d.{snippet.split('d.')[-1]}" in src
-        ), (
+    ]
+    for snippet in direct_checks:
+        assert f"_or_none({snippet})" in src, (
             f"v0.6.19: string sensor reading {snippet!r} must wrap "
             f"the read in ``_or_none(...)`` so empty strings become "
             f"``None`` instead of blank cells."
         )
+
+    # v0.6.27: streaming channel fields are read via
+    # ``_channel_streaming_field(channel_id, field_name)`` which
+    # applies ``_or_none`` internally to string fields. Verify the
+    # helper exists AND that it explicitly handles the empty-string
+    # case (via ``_or_none`` wrapping).
+    assert "def _channel_streaming_field(" in src, (
+        "v0.6.27: _channel_streaming_field helper must exist."
+    )
+    # Extract the helper body to inspect the string-field handling.
+    helper_start = src.index("def _channel_streaming_field(")
+    # Walk forward until we hit the next def / class.
+    helper_end = helper_start
+    line_start = 0
+    for i, line in enumerate(src[helper_start:].splitlines()):
+        if i == 0:
+            continue
+        if line.startswith("def ") or line.startswith("class "):
+            helper_end = helper_start + sum(
+                len(l) + 1 for l in src[helper_start:].splitlines()[:i]
+            )
+            break
+    helper_body = src[helper_start:helper_end]
+    assert "_or_none" in helper_body, (
+        "v0.6.27: _channel_streaming_field must call _or_none on "
+        "string-typed fields (video_codec / video_resolution / "
+        "audio_codec) to preserve v0.6.19 empty-string handling."
+    )
 
 
 # ---- binary_sensor: device_online ----

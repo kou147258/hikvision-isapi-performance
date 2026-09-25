@@ -46,6 +46,7 @@ V5 NVRs populate correctly.
 from __future__ import annotations
 
 import json
+import types
 from pathlib import Path
 from xml.etree import ElementTree as ET
 
@@ -244,8 +245,131 @@ def test_v0618_storage_sensors_re_added():
 
 
 def test_v0618_streaming_sensors_added():
-    """New codec / resolution / framerate / bitrate / audio sensors."""
-    keys = set(_sensor_keys())
+    """New codec / resolution / framerate / bitrate / audio sensors.
+
+    v0.6.18 added 5 static ``channel_1_*`` sensors. v0.6.27 made
+    the sensors dynamic (per detected channel) and removed the
+    static entries from the SENSORS list, but the dynamic
+    generator emits the SAME keys for channel id="1" so the
+    existing entity-registry entries still match.
+
+    We source-load ``_build_per_channel_entities`` rather than
+    importing the module — the conftest stub for
+    SensorEntityDescription doesn't quite match the dataclass
+    signature used by HikvisionISAPISensorDescription, so a full
+    module import raises TypeError on the SENSORS tuple even
+    though the production code is correct.
+    """
+    sensor_src = (
+        Path(r"C:\Users\43457\Desktop\hikvision-isapi")
+        / "custom_components"
+        / "hikvision_isapi_performance"
+        / "sensor.py"
+    ).read_text(encoding="utf-8-sig")
+    body_lines = sensor_src.splitlines()
+    start_idx = None
+    for i, line in enumerate(body_lines):
+        if line.startswith("def _build_per_channel_entities("):
+            start_idx = i
+            break
+    assert start_idx is not None, (
+        "v0.6.27: _build_per_channel_entities must exist in sensor.py"
+    )
+    end_idx = start_idx + 1
+    while end_idx < len(body_lines):
+        nxt = body_lines[end_idx]
+        if (
+            nxt.startswith("def ")
+            or nxt.startswith("class ")
+            or nxt.startswith("@")
+        ):
+            break
+        end_idx += 1
+    func_src = "\n".join(body_lines[start_idx:end_idx])
+    # Build a stub class that mimics HikvisionISAPISensorDescription's
+    # kw_only dataclass signature — accepting any kwargs and storing
+    # them as attributes. We don't need the real class, just the
+    # attribute access pattern (entity_description.key, .name, etc.)
+    class _StubDesc:
+        def __init__(self, **kwargs):
+            for k, v in kwargs.items():
+                setattr(self, k, v)
+
+    class _StubSensor:
+        def __init__(self, coordinator, entry, description):
+            self.entity_description = description
+            self.coordinator = coordinator
+            self.entry = entry
+
+    ns: dict = {
+        "Any": object,
+        "HikvisionISAPISensorDescription": _StubDesc,
+        "HikvisionISAPISensor": _StubSensor,
+        # Stubs for the HA constants referenced by the per-channel
+        # sensor descriptions (frame_rate uses SensorDeviceClass
+        # + SensorStateClass, bitrate uses SensorDeviceClass).
+        # We don't need real values — the test only checks the
+        # ``key`` attribute is set correctly.
+        "SensorDeviceClass": types.SimpleNamespace(
+            FREQUENCY="frequency", DATA_RATE="data_rate"
+        ),
+        "SensorStateClass": types.SimpleNamespace(
+            MEASUREMENT="measurement"
+        ),
+    }
+    # _or_none lives earlier in the file; source-load it into ns.
+    or_none_start = None
+    for i, line in enumerate(body_lines):
+        if line.startswith("def _or_none("):
+            or_none_start = i
+            break
+    if or_none_start is not None:
+        or_none_end = or_none_start + 1
+        while or_none_end < len(body_lines):
+            nxt = body_lines[or_none_end]
+            if (
+                nxt.startswith("def ")
+                or nxt.startswith("class ")
+                or nxt.startswith("@")
+            ):
+                break
+            or_none_end += 1
+        exec("\n".join(body_lines[or_none_start:or_none_end]), ns)
+    # _channel_streaming_field and _channel_name_value live
+    # earlier in the file and are called from inside
+    # _build_per_channel_entities. Source-load both.
+    for helper_name in ("_channel_streaming_field", "_channel_name_value"):
+        helper_start = None
+        for i, line in enumerate(body_lines):
+            if line.startswith(f"def {helper_name}("):
+                helper_start = i
+                break
+        if helper_start is None:
+            continue
+        helper_end = helper_start + 1
+        while helper_end < len(body_lines):
+            nxt = body_lines[helper_end]
+            if (
+                nxt.startswith("def ")
+                or nxt.startswith("class ")
+                or nxt.startswith("@")
+            ):
+                break
+            helper_end += 1
+        exec("\n".join(body_lines[helper_start:helper_end]), ns)
+    exec(func_src, ns)
+    build_fn = ns["_build_per_channel_entities"]
+
+    # Mock coordinator + entry + channel dict — we only need the
+    # function to construct entities with the right key strings.
+    class _Coord:
+        channels = []
+        streaming_channel_detail = {"channels": []}
+    class _Entry:
+        entry_id = "test_entry"
+    ch = {"id": "1", "name": "Camera 1"}
+    entities = build_fn(_Coord(), _Entry(), ch)
+    keys = {e.entity_description.key for e in entities}
     for new in (
         "channel_1_video_codec",
         "channel_1_video_resolution",
@@ -254,8 +378,8 @@ def test_v0618_streaming_sensors_added():
         "channel_1_audio_codec",
     ):
         assert new in keys, (
-            f"v0.6.18 added a new {new} sensor; this test pins "
-            "it so future regressions don't silently drop it."
+            f"v0.6.18 / v0.6.27: {new} sensor must be emitted "
+            f"for channel id=1 (got {sorted(keys)})."
         )
 
 
