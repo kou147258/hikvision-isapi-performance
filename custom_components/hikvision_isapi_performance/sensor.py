@@ -25,6 +25,7 @@ v0.6.19 cleanup (per user feedback after v0.6.18):
 from __future__ import annotations
 
 import logging
+import re
 from dataclasses import dataclass
 from typing import Any
 
@@ -617,12 +618,23 @@ async def async_setup_entry(
         ch.get("id", "") for ch in coordinator.channels
     ]  # type: ignore[attr-defined]
 
-    # NIC 1 = everything except network_2_* and channel_*_* (the
-    # latter are emitted per-channel above).
+    # NIC 1 = everything except network_2_* and per-channel
+    # sensors (channel_{N}_video_codec / _resolution / etc. for
+    # N >= 1). The per-channel entries are emitted by
+    # ``_build_per_channel_entities`` below.
+    #
+    # v0.6.30: the previous filter was
+    #   ``not d.key.startswith("channel_")``
+    # which incorrectly matched ``channel_count`` (a static
+    # entry that should always register). Result: HA showed
+    # the channel-count sensor as "unknown" forever — entity
+    # was never registered in the first place. New filter uses
+    # a regex to match the per-channel pattern only
+    # (channel_<digits>_*), so ``channel_count`` survives.
     nic1_descs = tuple(
         d for d in SENSORS
         if not d.key.startswith("network_2_")
-        and not d.key.startswith("channel_")
+        and not re.match(r"^channel_\d+_", d.key)
     )
 
     entities: list[HikvisionISAPISensor] = [
