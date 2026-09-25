@@ -67,6 +67,7 @@
       "firmware_release_date": {"name": "固件发布日期"},
       "device_type": {"name": "设备类型"},
       "device_id": {"name": "设备 ID"},
+      "device_mac": {"name": "设备 MAC"},
       "encoder_version": {"name": "编码器版本"},
       "channel_1_video_codec": {"name": "通道 1 视频编码"},
       "channel_1_video_resolution": {"name": "通道 1 分辨率"},

@@ -234,3 +234,57 @@ def test_v0630_release_notes_document_nic2_reload_path():
         "users see the entity list update + NIC 2 Reload "
         "instructions."
     )
+
+
+# ---------------------------------------------------------------------------
+# Translation completeness (audit found device_mac missing pre-v0.6.31)
+# ---------------------------------------------------------------------------
+
+
+def test_v0631_all_static_sensor_keys_have_translations():
+    """Every static SENSORS key must have a matching translation entry.
+
+    Regression guard — the v0.6.31 audit found ``device_mac``
+    sensor with translation_key ``device_mac`` was missing from
+    en.json + zh.json. Without a translation entry, HA falls back
+    to the entity's ``_attr_name`` (Chinese-only), breaking
+    English UI for that sensor.
+
+    This test scans sensor.py for every HikvisionISAPISensorDescription
+    key + its translation_key, then verifies the translation_key
+    exists in en.json's ``entity.sensor`` dict. Catches both
+    forgotten additions and accidental deletions.
+    """
+    import json
+    sensor_src = (
+        _INTEGRATION_ROOT / "sensor.py"
+    ).read_text(encoding="utf-8-sig")
+    en = json.loads(
+        (_INTEGRATION_ROOT / "translations" / "en.json").read_text(
+            encoding="utf-8-sig"
+        )
+    )
+    sensor_trans = en.get("entity", {}).get("sensor", {})
+
+    # Find every HikvisionISAPISensorDescription block; extract (key, translation_key).
+    descriptions = re.findall(
+        r"HikvisionISAPISensorDescription\(\s*(.*?)\n\s*\)",
+        sensor_src,
+        re.DOTALL,
+    )
+    missing = []
+    for desc in descriptions:
+        key_m = re.search(r'key="([^"]+)"', desc)
+        t_m = re.search(r'translation_key="([^"]+)"', desc)
+        if not key_m:
+            continue
+        key = key_m.group(1)
+        t = t_m.group(1) if t_m else None
+        if t and t not in sensor_trans:
+            missing.append((key, t))
+    assert not missing, (
+        f"v0.6.31: {len(missing)} sensor translation_key(s) missing "
+        f"from translations/en.json: {missing}. The entity falls "
+        f"back to _attr_name (Chinese-only) when the translation "
+        f"is absent — English UI breaks silently."
+    )

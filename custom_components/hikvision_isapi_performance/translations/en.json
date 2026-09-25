@@ -67,6 +67,7 @@
       "firmware_release_date": {"name": "Firmware Release Date"},
       "device_type": {"name": "Device Type"},
       "device_id": {"name": "Device ID"},
+      "device_mac": {"name": "Device MAC"},
       "encoder_version": {"name": "Encoder Version"},
       "channel_1_video_codec": {"name": "Channel 1 Video Codec"},
       "channel_1_video_resolution": {"name": "Channel 1 Resolution"},
