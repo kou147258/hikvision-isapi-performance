@@ -89,7 +89,9 @@
     "binary_sensor": {
       "channel_online": {"name": "在线"},
       "channel_recording": {"name": "录像中"},
-      "channel_motion": {"name": "运动检测"}
+      "channel_motion": {"name": "运动检测"},
+      "device_online": {"name": "设备在线"},
+      "device_time_abnormal": {"name": "设备时间异常"}
     }
   }
 }

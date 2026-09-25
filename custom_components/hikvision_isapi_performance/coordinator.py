@@ -175,6 +175,10 @@ def _parse_system_status(root: ET.Element | None) -> dict[str, str]:
             "uptime": "0",
             "rebootCount": None,
             "cpuDescription": None,
+            # v0.6.26: device-reported clock (ISO 8601 with offset, or None).
+            # Used by ``device_time_abnormal`` binary sensor to detect a
+            # dead CMOS battery (V4 NVRs roll this back to 2004-05).
+            "currentDeviceTime": None,
         }
     # New schema (V5.x) — nested CPUList / MemoryList.
     cpu = root.find(".//CPU")
@@ -237,6 +241,10 @@ def _parse_system_status(root: ET.Element | None) -> dict[str, str]:
         "uptime": _xml_text(root, "deviceUpTime") or _xml_text(root, "uptime") or "0",
         "rebootCount": _xml_text(root, "totalRebootCount"),
         "cpuDescription": _xml_text(cpu, "cpuDescription") if cpu is not None else None,
+        # v0.6.26: device-reported clock (ISO 8601 with offset, or None).
+        # Used by ``device_time_abnormal`` binary sensor to detect a
+        # dead CMOS battery (V4 NVRs roll this back to 2004-05).
+        "currentDeviceTime": _xml_text(root, "currentDeviceTime"),
     }
 
 

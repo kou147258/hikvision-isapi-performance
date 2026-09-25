@@ -120,6 +120,9 @@ _install_stub("homeassistant.components.binary_sensor", {
         CONNECTIVITY="connectivity",
         RUNNING="running",
         MOTION="motion",
+        # v0.6.26: device_time_abnormal binary sensor uses PROBLEM
+        # device class so HA renders it red on the device card.
+        PROBLEM="problem",
     ),
     "BinarySensorEntity": type("BinarySensorEntity", (), {}),
 })

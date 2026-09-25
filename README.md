@@ -52,6 +52,8 @@ that SNMP doesn't expose.
 2. Step 1 — enter the device IP, port (default 443), username, password, and whether to verify SSL (most Hikvision devices use self-signed certs, so leave this off).
 3. The integration tests the connection by GETting `/ISAPI/System/deviceInfo`. On success, the entry is created and the coordinator's first refresh runs in the background.
 
+> ⚠️ **Polling interval — keep it ≥ 120 seconds.** Hikvision's ISAPI web layer aggressively rate-limits the per-user HTTP session. A short scan interval (e.g. 30 s) on multiple devices sharing one web account will trip the temporary lockout, after which *all* ISAPI calls from that user fail for several minutes — taking every sensor on the device offline at once. **Recommended: `scan_interval >= 120`** (the default is 30 s; raise it explicitly in the integration's Options panel after install).
+
 ### Hikvision device prep
 
 1. Log into the device web UI.
@@ -148,6 +150,8 @@ MIT © 2026 43457. See `LICENSE`.
 1. **设置 → 设备与服务 → 添加集成 → Hikvision ISAPI Performance**。
 2. 步骤 1 — 输入设备 IP、端口（默认 443）、用户名、密码，以及是否验证 SSL（大多数海康设备用自签名证书，关掉这个）。
 3. 集成会 GET `/ISAPI/System/deviceInfo` 测试连接。成功后 entry 创建，coordinator 在后台开始首次 refresh。
+
+> ⚠️ **轮询间隔——请保持 ≥ 120 秒。** 海康 ISAPI web 层对单用户的 HTTP 会话限流比较激进。多台设备共用一个 web 账号 + 短 scan_interval（比如 30 s）很容易触发临时封禁，封禁期间**该账号下所有设备的全部 ISAPI 调用都会失败几分钟**，所有传感器同时掉线。**建议 `scan_interval >= 120`**（默认是 30 s，安装后在集成的 Options 面板里手动改高）。
 
 #### 海康设备端准备
 

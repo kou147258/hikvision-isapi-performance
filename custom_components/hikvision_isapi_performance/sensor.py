@@ -600,10 +600,23 @@ async def async_setup_entry(
         if not d.key.startswith("network_2_")
     )
 
+    # v0.6.26: V4 NVR/DVR firmware returns ``cpuUtilization=0`` for
+    # its own CPU (not the mounted IPC channels) — a firmware bug
+    # documented in Hikvision's release notes. Registering the
+    # ``cpu_usage`` sensor on a NVR/DVR would surface a permanent
+    # "0%" reading, which is worse than not registering it: the
+    # user assumes the NVR is idle when it may actually be heavily
+    # loaded, breaking any alert thresholds.
+    #
+    # Skip the sensor entirely on NVR/DVR. IPC keeps the sensor
+    # because their CPU readings are reliable.
     entities: list[HikvisionISAPISensor] = [
         HikvisionISAPISensor(coordinator, entry, desc)
         for desc in nic1_descs
-        if is_recorder or not desc.key.startswith("storage_")
+        if (
+            (is_recorder or not desc.key.startswith("storage_"))
+            and (not is_recorder or desc.key != "cpu_usage")
+        )
     ]
 
     # Add NIC 2 entities synchronously if the coordinator already

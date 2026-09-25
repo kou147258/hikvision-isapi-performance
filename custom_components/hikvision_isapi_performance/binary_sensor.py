@@ -24,6 +24,7 @@ the latest poll returned data and False only when ``data`` is None.
 from __future__ import annotations
 
 import logging
+from datetime import datetime, timezone
 from typing import Any
 
 from homeassistant.components.binary_sensor import (
@@ -41,6 +42,62 @@ from .entity import HikvisionISAPIEntity
 _LOGGER = logging.getLogger(__name__)
 
 
+# v0.6.26: device time vs. HA host time delta threshold for
+# ``device_time_abnormal`` to flag a problem. 24 hours covers the
+# usual "V4 NVR dead CMOS battery" symptom (clock rolls back to
+# 2004-05) while tolerating a few hours of NTP drift / daylight-
+# saving shift without false positives.
+DEVICE_TIME_ABNORMAL_THRESHOLD_SECONDS = 24 * 60 * 60
+
+
+def _device_time_abnormal(
+    current_device_time: str | None,
+    now_utc: datetime | None = None,
+) -> bool | None:
+    """Return True if the device's reported clock is more than 24 h off.
+
+    v0.6.26: Hikvision V4 NVRs with a dead CMOS battery roll
+    ``<currentDeviceTime>`` back to 2004-05-03 — the device may be
+    perfectly reachable, recording, and streaming, but its clock
+    is wrong. We expose this as a binary sensor so HA automations
+    can notify (and so the dashboard surfaces it without users
+    digging through raw XML).
+
+    Inputs:
+    - ``current_device_time``: raw ``<currentDeviceTime>`` string
+      from ``/ISAPI/System/status`` (ISO 8601 with offset, e.g.
+      ``"2004-05-03T22:54:38+08:00"``) or ``None`` if missing.
+    - ``now_utc``: optional ``datetime`` injected for tests.
+      Defaults to ``datetime.now(timezone.utc)``.
+
+    Returns:
+    - ``True`` if the device clock is more than 24 h off from
+      ``now_utc`` (in either direction — a 2004 clock is just as
+      bad as a 2099 one).
+    - ``False`` if the clock is within the threshold.
+    - ``None`` if the device clock isn't known (no data, parse
+      failure, or missing field) — HA renders this as
+      ``unknown``, distinct from a hard ``False`` / ``True``.
+    """
+    if current_device_time is None:
+        return None
+    try:
+        device_dt = datetime.fromisoformat(current_device_time.strip())
+    except (TypeError, ValueError):
+        # Garbage in the field (some firmwares emit "0" or empty).
+        # Treat as unknown rather than raising — the entity will
+        # show ``unknown`` and we won't spam the log every refresh.
+        return None
+    if device_dt.tzinfo is None:
+        # Naive datetime — assume UTC (defensive default).
+        device_dt = device_dt.replace(tzinfo=timezone.utc)
+    now = now_utc if now_utc is not None else datetime.now(timezone.utc)
+    if now.tzinfo is None:
+        now = now.replace(tzinfo=timezone.utc)
+    delta = abs((device_dt - now).total_seconds())
+    return delta > DEVICE_TIME_ABNORMAL_THRESHOLD_SECONDS
+
+
 async def async_setup_entry(
     hass: HomeAssistant,
     entry: ConfigEntry,
@@ -51,6 +108,10 @@ async def async_setup_entry(
 
     entities: list[BinarySensorEntity] = [
         HikvisionISAPIDeviceOnlineBinarySensor(coordinator, entry),
+        # v0.6.26: detect dead CMOS battery / wrong time on V4 NVRs.
+        # Device class PROBLEM so the entity shows up red on the device
+        # card and works out-of-the-box with HA's "problem" automations.
+        HikvisionISAPIDeviceTimeAbnormalBinarySensor(coordinator, entry),
     ]
     for ch in coordinator.channels:
         entities.extend(_entities_for_channel(coordinator, entry, ch))
@@ -249,3 +310,47 @@ class HikvisionISAPIDeviceOnlineBinarySensor(
         if self.coordinator.data is None:
             return False
         return True
+
+
+class HikvisionISAPIDeviceTimeAbnormalBinarySensor(
+    HikvisionISAPIEntity, BinarySensorEntity
+):
+    """Device clock abnormality detector (v0.6.26).
+
+    ON when the device's reported ``<currentDeviceTime>`` from
+    ``/ISAPI/System/status`` is more than 24 hours away from the
+    HA host's wall-clock time. The classic trigger is a V4 NVR's
+    dead CMOS battery — the device keeps recording and streaming
+    normally, but its clock rolls back to 2004-05. Without this
+    sensor the user has no way to notice the wrong clock short of
+    digging through raw XML, and downstream issues (broken
+    automations that key off timestamps, off-by-decades history
+    charts) are silently wrong.
+
+    Device class ``PROBLEM`` so HA renders it red on the device
+    card when ON and wires it into the standard "this device has a
+    problem" notification flow.
+
+    The helper function ``_device_time_abnormal`` is source-loadable
+    in tests so we don't have to mock the whole HA clock stack.
+    """
+
+    _attr_translation_key = "device_time_abnormal"
+    _attr_device_class = BinarySensorDeviceClass.PROBLEM
+
+    def __init__(
+        self,
+        coordinator: HikvisionISAPICoordinator,
+        entry: ConfigEntry,
+    ) -> None:
+        super().__init__(coordinator, entry)
+        self._attr_unique_id = f"{entry.entry_id}_device_time_abnormal"
+        self._attr_name = "设备时间异常"
+
+    @property
+    def is_on(self) -> bool | None:
+        if self.coordinator.data is None:
+            return None
+        return _device_time_abnormal(
+            self.coordinator.data.system_status.get("currentDeviceTime")
+        )

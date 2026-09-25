@@ -89,7 +89,9 @@
     "binary_sensor": {
       "channel_online": {"name": "Online"},
       "channel_recording": {"name": "Recording"},
-      "channel_motion": {"name": "Motion Detected"}
+      "channel_motion": {"name": "Motion Detected"},
+      "device_online": {"name": "Device Online"},
+      "device_time_abnormal": {"name": "Device Time Abnormal"}
     }
   }
 }
