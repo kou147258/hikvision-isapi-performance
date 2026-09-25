@@ -204,6 +204,22 @@ SENSORS: tuple[HikvisionISAPISensorDescription, ...] = (
         icon="mdi:counter",
         value_fn=lambda d: len(d.channels),
     ),
+    # v0.6.28: cross-check channel count from the device's own
+    # capability probe (``/ISAPI/System/capabilities``,
+    # ``<VideoInputChannelNums>``). IPCs report 1; NVRs report the
+    # number of camera channels they support. Useful for spotting
+    # new / obscure device types whose ``deviceType`` string the
+    # integration doesn't recognise — if the live channel count
+    # doesn't match the device's own claim, the dashboard surfaces
+    # the discrepancy. ``None`` when the endpoint isn't reachable.
+    HikvisionISAPISensorDescription(
+        key="capability_video_input_channels",
+        translation_key="capability_video_input_channels",
+        name="能力 — 视频输入通道数",
+        icon="mdi:counter",
+        state_class=SensorStateClass.MEASUREMENT,
+        value_fn=lambda d: d.system_capabilities.get("video_input_channels"),
+    ),
     # ---- network (first interface) ----
     HikvisionISAPISensorDescription(
         key="network_ip",

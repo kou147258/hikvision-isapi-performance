@@ -42,26 +42,26 @@ from .entity import HikvisionISAPIEntity
 _LOGGER = logging.getLogger(__name__)
 
 
-# v0.6.26: device time vs. HA host time delta threshold for
-# ``device_time_abnormal`` to flag a problem. 24 hours covers the
-# usual "V4 NVR dead CMOS battery" symptom (clock rolls back to
-# 2004-05) while tolerating a few hours of NTP drift / daylight-
-# saving shift without false positives.
+# v0.6.26 (renamed v0.6.28): device time vs. HA host time delta
+# threshold for ``dev_time_abnormal`` to flag a problem. 24 hours
+# covers the usual "V4 NVR dead CMOS battery" symptom (clock
+# rolls back to 2004-05) while tolerating a few hours of NTP
+# drift / daylight-saving shift without false positives.
 DEVICE_TIME_ABNORMAL_THRESHOLD_SECONDS = 24 * 60 * 60
 
 
-def _device_time_abnormal(
+def _dev_time_abnormal(
     current_device_time: str | None,
     now_utc: datetime | None = None,
 ) -> bool | None:
     """Return True if the device's reported clock is more than 24 h off.
 
-    v0.6.26: Hikvision V4 NVRs with a dead CMOS battery roll
-    ``<currentDeviceTime>`` back to 2004-05-03 — the device may be
-    perfectly reachable, recording, and streaming, but its clock
-    is wrong. We expose this as a binary sensor so HA automations
-    can notify (and so the dashboard surfaces it without users
-    digging through raw XML).
+    v0.6.26 (renamed v0.6.28): Hikvision V4 NVRs with a dead CMOS
+    battery roll ``<currentDeviceTime>`` back to 2004-05-03 — the
+    device may be perfectly reachable, recording, and streaming,
+    but its clock is wrong. We expose this as a binary sensor so
+    HA automations can notify (and so the dashboard surfaces it
+    without users digging through raw XML).
 
     Inputs:
     - ``current_device_time``: raw ``<currentDeviceTime>`` string
@@ -111,7 +111,7 @@ async def async_setup_entry(
         # v0.6.26: detect dead CMOS battery / wrong time on V4 NVRs.
         # Device class PROBLEM so the entity shows up red on the device
         # card and works out-of-the-box with HA's "problem" automations.
-        HikvisionISAPIDeviceTimeAbnormalBinarySensor(coordinator, entry),
+        HikvisionISAPIDevTimeAbnormalBinarySensor(coordinator, entry),
     ]
     for ch in coordinator.channels:
         entities.extend(_entities_for_channel(coordinator, entry, ch))
@@ -312,10 +312,10 @@ class HikvisionISAPIDeviceOnlineBinarySensor(
         return True
 
 
-class HikvisionISAPIDeviceTimeAbnormalBinarySensor(
+class HikvisionISAPIDevTimeAbnormalBinarySensor(
     HikvisionISAPIEntity, BinarySensorEntity
 ):
-    """Device clock abnormality detector (v0.6.26).
+    """Device clock abnormality detector (v0.6.26, renamed v0.6.28).
 
     ON when the device's reported ``<currentDeviceTime>`` from
     ``/ISAPI/System/status`` is more than 24 hours away from the
@@ -331,11 +331,18 @@ class HikvisionISAPIDeviceTimeAbnormalBinarySensor(
     card when ON and wires it into the standard "this device has a
     problem" notification flow.
 
-    The helper function ``_device_time_abnormal`` is source-loadable
+    The helper function ``_dev_time_abnormal`` is source-loadable
     in tests so we don't have to mock the whole HA clock stack.
+
+    v0.6.28: renamed from ``device_time_abnormal`` to
+    ``dev_time_abnormal`` to match the user's requested field
+    name. The unique_id also changes — existing v0.6.26 / v0.6.27
+    users will see a new entity (``binary_sensor.<device>_dev_time_abnormal``)
+    alongside the old one until they delete the legacy entity
+    manually. Both entities show the same value.
     """
 
-    _attr_translation_key = "device_time_abnormal"
+    _attr_translation_key = "dev_time_abnormal"
     _attr_device_class = BinarySensorDeviceClass.PROBLEM
 
     def __init__(
@@ -344,13 +351,13 @@ class HikvisionISAPIDeviceTimeAbnormalBinarySensor(
         entry: ConfigEntry,
     ) -> None:
         super().__init__(coordinator, entry)
-        self._attr_unique_id = f"{entry.entry_id}_device_time_abnormal"
+        self._attr_unique_id = f"{entry.entry_id}_dev_time_abnormal"
         self._attr_name = "设备时间异常"
 
     @property
     def is_on(self) -> bool | None:
         if self.coordinator.data is None:
             return None
-        return _device_time_abnormal(
+        return _dev_time_abnormal(
             self.coordinator.data.system_status.get("currentDeviceTime")
         )

@@ -47,6 +47,7 @@
       "memory_usage": {"name": "内存使用率"},
       "uptime": {"name": "运行时长"},
       "channel_count": {"name": "通道数"},
+      "capability_video_input_channels": {"name": "能力 — 视频输入通道数"},
       "storage_total": {"name": "存储总量"},
       "storage_used": {"name": "存储使用量"},
       "storage_free": {"name": "存储剩余"},
@@ -97,7 +98,7 @@
       "channel_recording": {"name": "录像中"},
       "channel_motion": {"name": "运动检测"},
       "device_online": {"name": "设备在线"},
-      "device_time_abnormal": {"name": "设备时间异常"}
+      "dev_time_abnormal": {"name": "设备时间异常"}
     }
   }
 }

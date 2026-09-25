@@ -46,6 +46,12 @@ ISAPI_SYSTEM_NETWORK_INTERFACES: Final = (
     "/ISAPI/System/Network/interfaces"
 )
 ISAPI_SYSTEM_REBOOT: Final = "/ISAPI/System/reboot"
+# v0.6.28: capability probe endpoint. Returns the device's
+# supported ISAPI features and its canonical ``SupportDeviceType``
+# list. Cross-checks the ``deviceType`` string returned by
+# ``deviceInfo`` so we can detect new / unrecognised device types
+# (helpful for IPC/NVR/DVR edge cases on obscure firmware).
+ISAPI_SYSTEM_CAPABILITIES: Final = "/ISAPI/System/capabilities"
 
 # Channel / camera streams
 ISAPI_INPUT_PROXY_CHANNELS: Final = (

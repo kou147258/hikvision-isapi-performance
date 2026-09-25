@@ -1,20 +1,20 @@
-"""Regression tests for v0.6.26.
+﻿"""Regression tests for v0.6.26.
 
 User feedback after v0.6.25 (via second attached analysis document)
 flagged two real bugs plus one documentation gap:
 
-🟥 2. Old V4 NVR firmware returns ``cpuUtilization=0`` for its own
+馃煡 2. Old V4 NVR firmware returns ``cpuUtilization=0`` for its own
        CPU (firmware bug). Pre-v0.6.26 the integration registered
        the ``cpu_usage`` sensor on every device, so a V4 NVR
-       showed a permanent "0%" — masking real high-CPU conditions
+       showed a permanent "0%" 鈥?masking real high-CPU conditions
        from any HA alert threshold.
 
        Fix: skip the ``cpu_usage`` sensor entirely on NVR/DVR
        (``is_recorder`` check in ``async_setup_entry``). IPC keeps
        the sensor because their CPU readings are reliable.
 
-🟨 6. The integration had no way to detect a dead CMOS battery on
-       a V4 NVR — the device stays online, records, and streams
+馃煥 6. The integration had no way to detect a dead CMOS battery on
+       a V4 NVR 鈥?the device stays online, records, and streams
        normally, but its ``<currentDeviceTime>`` rolls back to
        2004-05-03. Without a sensor, automations keyed on
        timestamps silently use the wrong reference, and history
@@ -22,22 +22,22 @@ flagged two real bugs plus one documentation gap:
 
        Fix: parse ``<currentDeviceTime>`` in ``_parse_system_status``
        (the docstring claimed it but the code never stored it)
-       and expose a ``device_time_abnormal`` binary sensor with
+       and expose a ``dev_time_abnormal`` binary sensor with
        ``BinarySensorDeviceClass.PROBLEM``. ON when device clock
        is more than 24 h away from HA host's wall-clock time.
 
-🟪 9. Documentation gap: HA users routinely set
+馃煪 9. Documentation gap: HA users routinely set
        ``scan_interval: 30`` and trip the Hikvision web-account
        lockout, taking every ISAPI sensor on the device offline.
        README now warns ``scan_interval >= 120``.
 
 Tests:
 - ``_parse_system_status`` now extracts ``currentDeviceTime``
-- ``_device_time_abnormal`` returns True / False / None correctly
+- ``_dev_time_abnormal`` returns True / False / None correctly
 - NVR/DVR ``async_setup_entry`` does NOT register ``cpu_usage``
 - IPC ``async_setup_entry`` DOES register ``cpu_usage``
 - README contains the scan_interval warning (English + Chinese)
-- All 4 translation files contain ``device_time_abnormal``
+- All 4 translation files contain ``dev_time_abnormal``
 """
 
 from __future__ import annotations
@@ -153,7 +153,7 @@ def _source_load_function(
 
 
 # ---------------------------------------------------------------------------
-# 🟥2 — NVR/DVR does NOT register ``cpu_usage``
+# 馃煡2 鈥?NVR/DVR does NOT register ``cpu_usage``
 # ---------------------------------------------------------------------------
 
 
@@ -183,7 +183,7 @@ def test_v0626_nvr_cpu_usage_suppressed_at_setup_level():
     # The cpu_usage filter lives inside the ``for desc in nic1_descs``
     # list comprehension. Find that block (other ``entities: list[...]``
     # occurrences are empty initialisers for per_channel_entities /
-    # listener-side tracking — those would falsely match a non-greedy
+    # listener-side tracking 鈥?those would falsely match a non-greedy
     # regex because they're ``= []``).
     comp_match = re.search(
         r"entities\s*:\s*list\[HikvisionISAPISensor\]\s*=\s*\[\s*HikvisionISAPISensor\(coordinator, entry, desc\)\s*\n\s*for desc in nic1_descs\s*\n\s*if\s*\((.*?)\)\s*\]",
@@ -223,7 +223,7 @@ def test_v0626_ipc_cpu_usage_still_registered():
     body = comp_match.group(1)
     # v0.6.27 filter: ``not is_v4_recorder or desc.key != "cpu_usage"``.
     # For IPC (is_recorder=False, is_v4_recorder=False):
-    #   - cpu filter: (True or X) = True → cpu sensor included.
+    #   - cpu filter: (True or X) = True 鈫?cpu sensor included.
     assert "not is_v4_recorder" in body, (
         "v0.6.27: filter must use is_v4_recorder to allow "
         "cpu_usage on IPC + V5+ NVR while only excluding it "
@@ -232,7 +232,7 @@ def test_v0626_ipc_cpu_usage_still_registered():
 
 
 # ---------------------------------------------------------------------------
-# 🟨6 — ``currentDeviceTime`` parsing + ``device_time_abnormal`` detection
+# 馃煥6 鈥?``currentDeviceTime`` parsing + ``dev_time_abnormal`` detection
 # ---------------------------------------------------------------------------
 
 
@@ -240,9 +240,9 @@ def test_v0626_current_device_time_extracted_from_system_status():
     """``_parse_system_status`` must store ``<currentDeviceTime>``.
 
     Pre-v0.6.26 the docstring described ``<currentDeviceTime>``
-    but the function never extracted it — the field was lost
+    but the function never extracted it 鈥?the field was lost
     between parsing and the sensor / binary-sensor layers.
-    v0.6.26 fixes that so ``device_time_abnormal`` can read it.
+    v0.6.26 fixes that so ``dev_time_abnormal`` can read it.
     """
     mods = _load_module("coordinator")
     coord = mods["coordinator"]
@@ -271,17 +271,17 @@ def test_v0626_current_device_time_none_when_root_is_none():
     )
 
 
-def test_v0626_device_time_abnormal_dead_cmos_battery():
-    """Dead CMOS battery (2004-05) → True at any reasonable 'now'."""
+def test_v0626_dev_time_abnormal_dead_cmos_battery():
+    """Dead CMOS battery (2004-05) 鈫?True at any reasonable 'now'."""
     bs_path = _INTEGRATION_ROOT / "binary_sensor.py"
     fn = _source_load_function(
         bs_path,
-        "_device_time_abnormal",
+        "_dev_time_abnormal",
         extra_globals={"datetime": datetime, "timezone": timezone},
     )
     # Pick a now that's well within the 24h window of "2026-09-25".
     now = datetime(2026, 9, 25, 10, 0, 0, tzinfo=timezone.utc)
-    # 2004-05-03 vs 2026-09-25 ≈ 22 years off → must flag.
+    # 2004-05-03 vs 2026-09-25 鈮?22 years off 鈫?must flag.
     assert fn("2004-05-03T22:54:38+08:00", now) is True
     # Year 2099 future-drift is also abnormal.
     assert fn("2099-12-31T23:59:59+00:00", now) is True
@@ -292,14 +292,14 @@ def test_v0626_device_time_normal_returns_false():
     bs_path = _INTEGRATION_ROOT / "binary_sensor.py"
     fn = _source_load_function(
         bs_path,
-        "_device_time_abnormal",
+        "_dev_time_abnormal",
         extra_globals={"datetime": datetime, "timezone": timezone},
     )
     now = datetime(2026, 9, 25, 10, 0, 0, tzinfo=timezone.utc)
-    # 1 hour off → False.
+    # 1 hour off 鈫?False.
     one_hour_ago = (now - timedelta(hours=1)).isoformat()
     assert fn(one_hour_ago, now) is False
-    # 23 hours off → still False (below threshold).
+    # 23 hours off 鈫?still False (below threshold).
     twenty_three_hours_ago = (now - timedelta(hours=23)).isoformat()
     assert fn(twenty_three_hours_ago, now) is False
 
@@ -316,17 +316,17 @@ def test_v0626_device_time_just_over_threshold_returns_true():
     bs_path = _INTEGRATION_ROOT / "binary_sensor.py"
     fn = _source_load_function(
         bs_path,
-        "_device_time_abnormal",
+        "_dev_time_abnormal",
         extra_globals={"datetime": datetime, "timezone": timezone},
     )
     now = datetime(2026, 9, 25, 10, 0, 0, tzinfo=timezone.utc)
-    # Exactly 24 h off → False (boundary, not over).
+    # Exactly 24 h off 鈫?False (boundary, not over).
     exactly_24h = (now - timedelta(hours=24)).isoformat()
     assert fn(exactly_24h, now) is False, (
-        "v0.6.26: 24 h drift must NOT trigger — threshold is "
+        "v0.6.26: 24 h drift must NOT trigger 鈥?threshold is "
         "strict greater-than so NTP sync noise doesn't false alarm."
     )
-    # 25 h off → True.
+    # 25 h off 鈫?True.
     twenty_five_h = (now - timedelta(hours=25)).isoformat()
     assert fn(twenty_five_h, now) is True
 
@@ -336,7 +336,7 @@ def test_v0626_device_time_unknown_when_field_missing():
     bs_path = _INTEGRATION_ROOT / "binary_sensor.py"
     fn = _source_load_function(
         bs_path,
-        "_device_time_abnormal",
+        "_dev_time_abnormal",
         extra_globals={"datetime": datetime, "timezone": timezone},
     )
     assert fn(None) is None
@@ -348,35 +348,35 @@ def test_v0626_device_time_unknown_when_field_missing():
 
 
 def test_v0626_binary_sensor_class_registered():
-    """``HikvisionISAPIDeviceTimeAbnormalBinarySensor`` must exist + register."""
+    """``HikvisionISAPIDevTimeAbnormalBinarySensor`` must exist + register."""
     mods = _load_module("binary_sensor")
     bs = mods["binary_sensor"]
     cls = getattr(
-        bs, "HikvisionISAPIDeviceTimeAbnormalBinarySensor", None
+        bs, "HikvisionISAPIDevTimeAbnormalBinarySensor", None
     )
     assert cls is not None, (
-        "v0.6.26: HikvisionISAPIDeviceTimeAbnormalBinarySensor "
+        "v0.6.26: HikvisionISAPIDevTimeAbnormalBinarySensor "
         "class is missing from binary_sensor.py"
     )
     # Verify async_setup_entry actually instantiates it.
     bs_src = (_INTEGRATION_ROOT / "binary_sensor.py").read_text(
         encoding="utf-8-sig"
     )
-    assert "HikvisionISAPIDeviceTimeAbnormalBinarySensor(" in bs_src, (
+    assert "HikvisionISAPIDevTimeAbnormalBinarySensor(" in bs_src, (
         "v0.6.26: async_setup_entry must instantiate the new "
         "binary sensor (otherwise the entity never registers)."
     )
 
 
 # ---------------------------------------------------------------------------
-# 🟪9 — README scan_interval warning
+# 馃煪9 鈥?README scan_interval warning
 # ---------------------------------------------------------------------------
 
 
 def test_v0626_readme_english_scan_interval_warning():
     """English README must warn about scan_interval >= 120."""
     readme = (_REPO_ROOT / "README.md").read_text(encoding="utf-8-sig")
-    # Split at the 简体中文 anchor so we test the English section only.
+    # Split at the 绠€浣撲腑鏂?anchor so we test the English section only.
     english = readme.split("## 配置")[0]
     assert "scan_interval" in english.lower(), (
         "v0.6.26: English README must mention scan_interval."
@@ -394,7 +394,7 @@ def test_v0626_readme_chinese_scan_interval_warning():
         "v0.6.26: Chinese README must warn about scan_interval >= 120."
     )
     # Sanity: the Chinese section should mention scan_interval too.
-    assert "scan_interval" in chinese or "轮询间隔" in chinese, (
+    assert "scan_interval" in chinese or "杞闂撮殧" in chinese, (
         "v0.6.26: Chinese README must discuss the polling interval."
     )
 
@@ -404,8 +404,8 @@ def test_v0626_readme_chinese_scan_interval_warning():
 # ---------------------------------------------------------------------------
 
 
-def test_v0626_translations_include_device_time_abnormal():
-    """All 4 translation files must declare ``device_time_abnormal``."""
+def test_v0626_translations_include_dev_time_abnormal():
+    """All 4 translation files must declare ``dev_time_abnormal``."""
     expected = {
         "en.json": "Device Time Abnormal",
         "zh-CN.json": "设备时间异常",
@@ -417,12 +417,12 @@ def test_v0626_translations_include_device_time_abnormal():
         assert path.exists(), f"translation file {fname} missing"
         data = json.loads(path.read_text(encoding="utf-8-sig"))
         bs = data.get("entity", {}).get("binary_sensor", {})
-        key = bs.get("device_time_abnormal")
+        key = bs.get("dev_time_abnormal")
         assert key is not None, (
-            f"v0.6.26: {fname} is missing binary_sensor.device_time_abnormal"
+            f"v0.6.26: {fname} is missing binary_sensor.dev_time_abnormal"
         )
         assert key.get("name") == expected_name, (
-            f"v0.6.26: {fname} device_time_abnormal.name should be "
+            f"v0.6.26: {fname} dev_time_abnormal.name should be "
             f"{expected_name!r}, got {key.get('name')!r}"
         )
 
@@ -431,7 +431,7 @@ def test_v0626_three_chinese_translations_remain_identical():
     """zh-CN.json, zh.json, zh-Hans.json must stay byte-identical.
 
     Pre-v0.6.26 they were already identical (zhhash match); v0.6.26
-    added ``device_time_abnormal`` to all three, so we re-pin the
+    added ``dev_time_abnormal`` to all three, so we re-pin the
     invariant. If a future change splits the translations, this
     test will fail and force an explicit decision.
     """
@@ -457,20 +457,19 @@ def test_v0626_no_new_missing_imports():
     """Re-run the import audit mentally for v0.6.26 changes.
 
     The test_imports_audit module's tests cover all files in the
-    integration root — re-running the full suite catches any new
+    integration root 鈥?re-running the full suite catches any new
     missing imports introduced by v0.6.26. We just verify the
     audit module itself runs to completion (returns no failures
     for our two changed files).
     """
-    # binary_sensor.py now uses ``datetime`` + ``timezone`` —
-    # verify both names are imported.
+    # binary_sensor.py now uses ``datetime`` + ``timezone`` 鈥?    # verify both names are imported.
     src = (_INTEGRATION_ROOT / "binary_sensor.py").read_text(
         encoding="utf-8-sig"
     )
     assert "from datetime import" in src and "datetime" in src and (
         "timezone" in src
     ), "v0.6.26: binary_sensor.py must import datetime + timezone."
-    # coordinator.py — currentDeviceTime extraction uses
+    # coordinator.py 鈥?currentDeviceTime extraction uses
     # ``_xml_text`` which is already imported. Verify.
     coord_src = (_INTEGRATION_ROOT / "coordinator.py").read_text(
         encoding="utf-8-sig"

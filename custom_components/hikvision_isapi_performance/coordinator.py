@@ -60,6 +60,7 @@ from .const import (
     ISAPI_INPUT_PROXY_CHANNELS_STATUS,
     ISAPI_STREAMING_CHANNELS,
     ISAPI_STREAMING_CHANNELS_STATUS,
+    ISAPI_SYSTEM_CAPABILITIES,
     ISAPI_SYSTEM_DEVICE_INFO,
     ISAPI_SYSTEM_NETWORK_INTERFACES,
     ISAPI_SYSTEM_STATUS,
@@ -242,10 +243,81 @@ def _parse_system_status(root: ET.Element | None) -> dict[str, str]:
         "rebootCount": _xml_text(root, "totalRebootCount"),
         "cpuDescription": _xml_text(cpu, "cpuDescription") if cpu is not None else None,
         # v0.6.26: device-reported clock (ISO 8601 with offset, or None).
-        # Used by ``device_time_abnormal`` binary sensor to detect a
+        # Used by ``dev_time_abnormal`` binary sensor to detect a
         # dead CMOS battery (V4 NVRs roll this back to 2004-05).
         "currentDeviceTime": _xml_text(root, "currentDeviceTime"),
     }
+
+
+def _parse_capabilities(root: ET.Element | None) -> dict[str, Any]:
+    """Parse ``/ISAPI/System/capabilities`` response.
+
+    v0.6.28: cross-check device classification. The ``deviceType``
+    string returned by ``/System/deviceInfo`` is usually enough to
+    distinguish IPC / NVR / DVR, but a small number of newer /
+    obscure firmwares emit unexpected values. The capabilities
+    endpoint gives an independent confirmation:
+
+    - ``status_supported`` (``True`` when the response contains
+      ``<SysStatus supported="true" />``) — pre-checks whether
+      ``/System/status`` is likely to succeed. Devices that return
+      ``notSupport`` on ``/System/status`` (e.g. some V4 NVRs)
+      usually also omit ``<SysStatus>`` from the capabilities
+      response, so this flag is a useful early signal.
+    - ``video_input_channels`` (``<VideoInputChannelNums>``) — IPCs
+      are 1, NVRs are 4/8/16/32. Cross-check against
+      ``len(coordinator.channels)`` to detect channel-detection
+      bugs on new device types.
+    - ``device_types`` (``<SupportDeviceType><DeviceType>`` list) —
+      the canonical device-type strings the firmware thinks it is.
+      We log the intersection with our ``deviceType`` mapping as a
+      diagnostic but still trust ``deviceInfo.deviceType`` (more
+      specific than the capabilities enumeration).
+
+    Returns an empty dict on parse failure / missing XML so the
+    coordinator can carry a stable ``capabilities`` shape through
+    every refresh.
+    """
+    if root is None:
+        return {}
+    out: dict[str, Any] = {}
+
+    # Status supported: <SysStatus supported="true" /> — sometimes
+    # the attribute is absent (older firmwares), default to True.
+    sys_status = root.find(".//SysStatus")
+    if sys_status is not None:
+        supported_attr = sys_status.attrib.get("supported")
+        if supported_attr is not None:
+            out["status_supported"] = supported_attr.strip().lower() == "true"
+        else:
+            out["status_supported"] = True
+    else:
+        # No <SysStatus> element at all → most likely a very old
+        # or non-standard firmware. Default to "unknown" (None) so
+        # the consumer doesn't assume one way or the other.
+        out["status_supported"] = None
+
+    # Video input channel count. Hikvision nests this under
+    # ``<SysCap>`` — use ``.//`` so we find it at any depth.
+    vic = root.find(".//VideoInputChannelNums")
+    out["video_input_channels"] = (
+        _safe_int_mb(vic.text) if vic is not None and vic.text else None
+    )
+
+    # Device types the firmware claims to support.
+    types: list[str] = []
+    for dt in root.findall(".//SupportDeviceType/DeviceType"):
+        if dt.text:
+            types.append(dt.text.strip())
+    out["device_types"] = types
+
+    # Ethernet / NIC count. Also nested under ``<NetworkCap>``.
+    eth = root.find(".//EthernetNums")
+    out["ethernet_interfaces"] = (
+        _safe_int_mb(eth.text) if eth is not None and eth.text else None
+    )
+
+    return out
 
 
 def _parse_channels(root: ET.Element | None) -> list[dict[str, Any]]:
@@ -887,6 +959,7 @@ class HikvisionISAPIData:
         streaming_bitrate_kbps: dict[str, int] | None = None,
         streaming_channel_detail: dict[str, Any] | None = None,
         time_info: dict[str, str | None] | None = None,
+        system_capabilities: dict[str, Any] | None = None,
     ) -> None:
         self.device_info = device_info
         # Normalized device type: "ipcamera" / "networkvideorecorder" /
@@ -909,6 +982,11 @@ class HikvisionISAPIData:
         self.time_info = time_info or {
             "time_mode": None, "local_time": None, "time_zone": None,
         }
+        # v0.6.28: parsed ``/ISAPI/System/capabilities`` response.
+        # Keys: ``status_supported`` (bool|None), ``video_input_channels``
+        # (int|None), ``device_types`` (list[str]), ``ethernet_interfaces``
+        # (int|None). Empty dict when the endpoint isn't reachable.
+        self.system_capabilities = system_capabilities or {}
 
 
 class HikvisionISAPICoordinator(DataUpdateCoordinator[HikvisionISAPIData]):
@@ -952,6 +1030,9 @@ class HikvisionISAPICoordinator(DataUpdateCoordinator[HikvisionISAPIData]):
         self.network_interfaces: list[dict[str, Any]] = []
         self.streaming_bitrate_kbps: dict[str, int] = {}
         self.streaming_channel_detail: dict[str, Any] = {}
+        # v0.6.28: parsed /ISAPI/System/capabilities response.
+        # Empty dict until the first coordinator refresh populates it.
+        self.system_capabilities: dict[str, Any] = {}
         # v0.6.24: initialize device_type to empty string in __init__
         # so platforms (sensor.async_setup_entry) can read it
         # BEFORE the first coordinator refresh completes. The
@@ -998,6 +1079,35 @@ class HikvisionISAPICoordinator(DataUpdateCoordinator[HikvisionISAPIData]):
             )
             return None, {}
         return xml, _parse_device_info(xml)
+
+    async def _fetch_capabilities(
+        self, client: ISAPIClient,
+    ) -> dict[str, Any]:
+        """``GET /ISAPI/System/capabilities`` (v0.6.28).
+
+        Cross-checks device classification independently of the
+        ``deviceType`` field returned by ``/deviceInfo``. The
+        endpoint usually succeeds even when ``/System/status``
+        returns ``notSupport`` (V4 NVRs), so we can use its
+        ``status_supported`` flag to mark the system_status
+        sensors as unknown instead of bogus zeros.
+
+        Returns an empty dict on failure — callers must handle
+        missing keys gracefully.
+        """
+        try:
+            xml = await client.get_xml(ISAPI_SYSTEM_CAPABILITIES)
+        except (ISAPIError, ISAPIAuthError, ISAPIConnectionError) as exc:
+            level = (
+                _LOGGER.info if exc.__class__ is ISAPIError else _LOGGER.warning
+            )
+            level(
+                "%s /ISAPI/System/capabilities failed: %s — capabilities "
+                "stays empty; refresh continues normally.",
+                self._host, exc,
+            )
+            return {}
+        return _parse_capabilities(xml)
 
     async def _fetch_system_status(
         self, client: ISAPIClient,
@@ -1270,6 +1380,10 @@ class HikvisionISAPICoordinator(DataUpdateCoordinator[HikvisionISAPIData]):
         try:
             async with self._make_client() as client:
                 device_info_xml, device_info = await self._fetch_device_info(client)
+                # v0.6.28: capability probe (independent of /status
+                # so a status notSupport failure doesn't hide the
+                # device's actual capabilities).
+                system_capabilities = await self._fetch_capabilities(client)
                 status_xml, system_status = await self._fetch_system_status(client)
         except ISAPIConnectionError as exc:
             # The client itself couldn't be opened / connected at all.
@@ -1511,6 +1625,10 @@ class HikvisionISAPICoordinator(DataUpdateCoordinator[HikvisionISAPIData]):
         self.streaming_bitrate_kbps = streaming_bitrate_kbps
         self.streaming_channel_detail = streaming_channel_detail
         self.time_info = time_info
+        # v0.6.28: store capability probe result on the coordinator
+        # instance for diagnostic logging + the
+        # ``capability_video_input_channels`` sensor.
+        self.system_capabilities = system_capabilities
 
         return HikvisionISAPIData(
             device_info=device_info,
@@ -1522,4 +1640,5 @@ class HikvisionISAPICoordinator(DataUpdateCoordinator[HikvisionISAPIData]):
             streaming_bitrate_kbps=streaming_bitrate_kbps,
             streaming_channel_detail=streaming_channel_detail,
             time_info=time_info,
+            system_capabilities=system_capabilities,
         )

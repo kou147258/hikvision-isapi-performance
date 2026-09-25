@@ -47,6 +47,7 @@
       "memory_usage": {"name": "Memory Usage"},
       "uptime": {"name": "Uptime"},
       "channel_count": {"name": "Channel Count"},
+      "capability_video_input_channels": {"name": "Capability: Video Input Channels"},
       "storage_total": {"name": "Storage Total"},
       "storage_used": {"name": "Storage Used"},
       "storage_free": {"name": "Storage Free"},
@@ -97,7 +98,7 @@
       "channel_recording": {"name": "Recording"},
       "channel_motion": {"name": "Motion Detected"},
       "device_online": {"name": "Device Online"},
-      "device_time_abnormal": {"name": "Device Time Abnormal"}
+      "dev_time_abnormal": {"name": "Device Time Abnormal"}
     }
   }
 }

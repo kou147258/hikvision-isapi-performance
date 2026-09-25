@@ -1,5 +1,7 @@
 # Hikvision ISAPI Performance
 
+> ⚠️ **Polling interval — keep it ≥ 120 seconds.** Hikvision's ISAPI web layer aggressively rate-limits the per-user HTTP session. Short `scan_interval` (e.g. 30 s or 60 s) on multiple devices sharing one web account will trip the temporary lockout — *all* ISAPI calls from that user fail for several minutes, taking every sensor on every device offline at once. **Recommended: `scan_interval >= 120` (the default is 30 s; raise it explicitly in the integration's Options panel after install).**
+
 <p align="right">
   🌐 <a href="#english"><b>English</b></a> · <a href="#简体中文">简体中文</a>
 </p>
@@ -120,6 +122,8 @@ MIT © 2026 43457. See `LICENSE`.
 </p>
 
 # Hikvision ISAPI Performance（简体中文）
+
+> ⚠️ **轮询间隔——请保持 ≥ 120 秒。** 海康 ISAPI web 层对单用户的 HTTP 会话限流比较激进。多台设备共用一个 web 账号 + 短 `scan_interval`（30 s / 60 s）极易触发临时封禁，封禁期间**该账号下所有设备的全部 ISAPI 调用都会失败几分钟**，所有传感器同时掉线。**建议 `scan_interval >= 120`**（默认是 30 s，安装后在集成的 Options 面板里手动调高）。
 
 一个用于海康威视 NVR / IPC 的 Home Assistant 自定义集成，**通过 ISAPI HTTP 接口**（区别于 [hikvision-snmp](https://github.com/kou147258/hikvision-snmp) 那个走 SNMP）。支持摄像头快照、系统 sensor、通道录像开关、重启按钮和 PTZ 预置位服务。
 
