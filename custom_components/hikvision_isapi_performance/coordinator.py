@@ -64,6 +64,7 @@ from .const import (
     ISAPI_SYSTEM_NETWORK_INTERFACES,
     ISAPI_SYSTEM_STATUS,
     ISAPI_SYSTEM_STORAGE_HARDDISKS,
+    ISAPI_SYSTEM_TIME,
 )
 from .isapi_client import ISAPIAuthError, ISAPIConnectionError, ISAPIClient, ISAPIError
 
