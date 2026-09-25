@@ -301,3 +301,34 @@ def test_v0619_time_info_in_data():
     assert "ISAPI_SYSTEM_TIME" in src, (
         "v0.6.19: coordinator must fetch ISAPI_SYSTEM_TIME."
     )
+
+
+# ---- regression: import must include everything sensor.py references ----
+
+
+def test_v0619_sensor_imports_unit_of_information():
+    """sensor.py must import ``UnitOfInformation`` (storage GB sensors).
+
+    v0.6.19 shipped with a regression: the sensor.py rewrite dropped
+    ``UnitOfInformation`` from the ``from homeassistant.const import``
+    line. The unit-test conftest stubbed it so tests passed, but real
+    HA import blew up at the first storage sensor (``storage_total_gb``)
+    with ``NameError: name 'UnitOfInformation' is not defined``.
+    Pin the import to prevent re-regression.
+    """
+    import re
+
+    src = _SENSOR_SRC.read_text(encoding="utf-8-sig")
+    # Find the homeassistant.const import line and confirm
+    # UnitOfInformation is in the same import.
+    match = re.search(
+        r"^from\s+homeassistant\.const\s+import\s+(.+)$",
+        src, flags=re.MULTILINE,
+    )
+    assert match, "sensor.py must have a `from homeassistant.const import ...` line"
+    imported = match.group(1)
+    for name in ("PERCENTAGE", "UnitOfTime", "UnitOfInformation"):
+        assert name in imported, (
+            f"sensor.py must import {name} from homeassistant.const "
+            f"(got: `{imported}`)"
+        )
