@@ -190,18 +190,50 @@ def _parse_system_status(root: ET.Element | None) -> dict[str, str]:
     if mem_avail is None:
         mem_avail = _xml_text(root, "memoryFree")
 
+    # v0.6.25: Hikvision's firmware is INCONSISTENT about which
+    # unit ``memoryUsage`` and ``memoryAvailable`` use:
+    #
+    #   V4 NVR (DS-7708N-I4 V4.1.18): both in decimal MB.
+    #     memoryUsage=" 728.234375"  (MB)
+    #     memoryAvailable=" 402.613281"  (MB)
+    #
+    #   V5 IPC (DS-FB2127 V5.2.2): MIXED units — memoryUsage in
+    #   MB, memoryAvailable in KB:
+    #     memoryUsage="61"           (MB)
+    #     memoryAvailable="224756"   (KB)
+    #
+    # Pre-v0.6.25 the parser stored both as raw integers, then
+    # ``_memory_usage_percent`` did ``used / (used + available)``
+    # assuming both were in the same unit. On V5 IPC this produced
+    # 0.03% memory usage (61 / (61 + 224756) ≈ 0.027%) — wildly
+    # wrong because ``memoryAvailable`` was actually 219.5 MB.
+    #
+    # Heuristic: if ``memoryAvailable > memoryUsage * 50`` then
+    # ``memoryAvailable`` is in KB. Convert it to MB so downstream
+    # sensors (memory_usage_percent, memory_available_mb) can
+    # assume both fields are MB. The 50x threshold is conservative
+    # — V4 NVRs typically have used/available within the same order
+    # of magnitude, so they fall well below it.
+    mem_usage_int = _safe_int_mb(mem_usage) or 0
+    mem_avail_int = _safe_int_mb(mem_avail) or 0
+    if (
+        mem_usage_int > 0
+        and mem_avail_int > mem_usage_int * 50
+    ):
+        mem_avail_int = round(mem_avail_int / 1024)
+
     return {
         "deviceStatus": (
             _xml_text(root, "deviceStatus") or "Unknown"
         ),
         "cpuUtilization": cpu_util or "0",
-        # v0.6.16: V4 NVR firmware reports memoryUsage as a decimal
-        # MB count (``"728.234375"``) with optional leading whitespace,
-        # V5 reports as integer (``"61"``). Use ``_safe_int_mb`` to
-        # accept both — pre-v0.6.16 this returned the raw text which
-        # sensors downstream could not coerce to a number.
-        "memoryUsage": str(_safe_int_mb(mem_usage) or 0),
-        "memoryAvailable": str(_safe_int_mb(mem_avail) or 0),
+        # v0.6.25: both fields normalised to MB. V4 NVR reports both
+        # in MB (no change); V5 IPC's mixed units (MB + KB) get
+        # converted upstream. memoryAvailable is decimal-MB (so 402.6
+        # MB available on V4 NVR becomes 402 on disk, 0.6 discarded
+        # for the percentage round).
+        "memoryUsage": str(mem_usage_int),
+        "memoryAvailable": str(mem_avail_int),
         "uptime": _xml_text(root, "deviceUpTime") or _xml_text(root, "uptime") or "0",
         "rebootCount": _xml_text(root, "totalRebootCount"),
         "cpuDescription": _xml_text(cpu, "cpuDescription") if cpu is not None else None,

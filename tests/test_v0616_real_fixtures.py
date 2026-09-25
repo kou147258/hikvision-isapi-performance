@@ -153,6 +153,12 @@ def test_parse_system_status_v5_ipc_integer_memory():
 
     All numeric fields are integers (``<memoryUsage>61</memoryUsage>``),
     the parser must keep working for these.
+
+    v0.6.25: V5 IPC reports ``memoryAvailable`` in KB but
+    ``memoryUsage`` in MB (Hikvision firmware inconsistency).
+    The parser detects this and converts ``memoryAvailable`` from
+    KB to MB (224664 KB ≈ 219 MB). Downstream sensors assume both
+    fields are in MB.
     """
     xml = """<DeviceStatus xmlns="http://www.hikvision.com/ver20/XMLSchema" version="2.0">
 <currentDeviceTime>2026-09-25T08:38:09+08:00</currentDeviceTime>
@@ -174,7 +180,8 @@ def test_parse_system_status_v5_ipc_integer_memory():
     status = _parse_system_status(_parse_root(xml))
     assert status["cpuUtilization"] == "48"
     assert status["memoryUsage"] == "61"
-    assert status["memoryAvailable"] == "224664"
+    # v0.6.25: 224664 KB → 224664/1024 ≈ 219 MB
+    assert status["memoryAvailable"] == "219"
     assert status["uptime"] == "145954"
     assert status["cpuDescription"] == "ARM926EJ-Sid(wb) [41069265] revision 5 (ARMv5TEJ)"
 
