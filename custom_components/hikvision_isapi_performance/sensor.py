@@ -249,6 +249,55 @@ SENSORS: tuple[HikvisionISAPISensorDescription, ...] = (
         # interface. _parse_network_interfaces handles both.
         value_fn=lambda d: _first_iface(d, "mtu"),
     ),
+    # ---- NIC 2 (v0.6.23) — only registered when device has >= 2
+    # network interfaces. Hikvision V4 NVRs (DS-7708N-I4 / DS-8632-I8)
+    # ship with 2 NICs by default; users on these devices previously
+    # saw only the first NIC's data. See async_setup_entry for the
+    # conditional registration logic.
+    #
+    # ``translation_key`` is distinct from NIC 1's because the
+    # entity's i18n string ("Network 2 IP Address") differs from
+    # NIC 1's ("Network IP Address"). Reusing NIC 1's key would
+    # trip HA's i18n uniqueness check and surface both NICs as
+    # "Network IP Address" in the user's language.
+    # ----
+    HikvisionISAPISensorDescription(
+        key="network_2_ip",
+        translation_key="network_2_ip",
+        name="网卡 2 IP 地址",
+        icon="mdi:ip",
+        value_fn=lambda d: _second_iface(d, "ip_address"),
+    ),
+    HikvisionISAPISensorDescription(
+        key="network_2_subnet",
+        translation_key="network_2_subnet",
+        name="网卡 2 子网掩码",
+        icon="mdi:subnet",
+        value_fn=lambda d: _second_iface(d, "subnet_mask"),
+    ),
+    HikvisionISAPISensorDescription(
+        key="network_2_gateway",
+        translation_key="network_2_gateway",
+        name="网卡 2 默认网关",
+        icon="mdi:router-network",
+        value_fn=lambda d: _second_iface(d, "default_gateway"),
+    ),
+    HikvisionISAPISensorDescription(
+        key="network_2_mac",
+        translation_key="network_2_mac",
+        name="网卡 2 MAC",
+        icon="mdi:network",
+        value_fn=lambda d: _second_iface(d, "mac_address"),
+    ),
+    HikvisionISAPISensorDescription(
+        key="network_2_mtu",
+        translation_key="network_2_mtu",
+        name="网卡 2 MTU",
+        icon="mdi:network",
+        state_class=SensorStateClass.MEASUREMENT,
+        native_unit_of_measurement="B",
+        value_fn=lambda d: _second_iface(d, "mtu"),
+    ),
     # ---- device clock (from /ISAPI/System/time, v0.6.19) ----
     HikvisionISAPISensorDescription(
         key="time_mode",
@@ -488,6 +537,21 @@ def _first_iface(data: HikvisionISAPIData, field: str) -> Any:
     return _or_none(ifaces[0].get(field))
 
 
+def _second_iface(data: HikvisionISAPIData, field: str) -> Any:
+    """v0.6.23: return ``field`` from the second network interface.
+
+    Hikvision V4 NVRs (e.g. ``DS-7708N-I4``) ship with two NICs.
+    The first refresh's ``network_interfaces`` list usually has
+    both. Used by the ``network_2_*`` sensor set below; returns
+    ``None`` for single-NIC devices or when the second interface
+    is missing the field.
+    """
+    ifaces = data.network_interfaces
+    if len(ifaces) < 2:
+        return None
+    return _or_none(ifaces[1].get(field))
+
+
 async def async_setup_entry(
     hass: HomeAssistant,
     entry: ConfigEntry,
@@ -503,6 +567,15 @@ async def async_setup_entry(
     card. NVR/DVR storage sensors remain registered even on
     firmware that 4xx's the endpoints (V4 NVR users still see
     "unknown" — gracefully degraded, not a hard error).
+
+    v0.6.23: NIC 2 sensors (5 entities: ip / subnet / gateway /
+    mac / mtu) are registered only when the coordinator reports
+    ``len(network_interfaces) >= 2``. Most V4 NVRs ship with two
+    NICs (e.g. ``DS-7708N-I4`` exposes 10.18.176.65 and
+    192.168.10.10). Single-NIC devices and IPCs don't get the
+    NIC 2 sensors at all. Late-arriving NIC 2 data is handled by
+    a one-shot coordinator listener (mirrors the per-channel
+    pattern in ``binary_sensor.py``).
     """
     from .const import (
         DEVICE_TYPE_DVR,
@@ -515,12 +588,68 @@ async def async_setup_entry(
     is_recorder = device_type in (
         DEVICE_TYPE_NETWORK_VIDEO_RECORDER, DEVICE_TYPE_DVR,
     )
-    entities = [
+
+    # NIC 2 sensors are useful only when the device has >=2
+    # network interfaces. Check synchronously first (data may
+    # already be available from a previous coordinator refresh);
+    # otherwise listen for late arrival.
+    nic2_descs = tuple(d for d in SENSORS if d.key.startswith("network_2_"))
+
+    nic1_descs = tuple(
+        d for d in SENSORS
+        if not d.key.startswith("network_2_")
+    )
+
+    entities: list[HikvisionISAPISensor] = [
         HikvisionISAPISensor(coordinator, entry, desc)
-        for desc in SENSORS
+        for desc in nic1_descs
         if is_recorder or not desc.key.startswith("storage_")
     ]
+
+    # Add NIC 2 entities synchronously if the coordinator already
+    # has the second interface data.
+    if coordinator.network_interfaces and len(coordinator.network_interfaces) >= 2:
+        entities.extend(
+            HikvisionISAPISensor(coordinator, entry, desc) for desc in nic2_descs
+        )
+        coordinator._hikvision_isapi_performance_nic2_added = True  # type: ignore[attr-defined]
+    else:
+        coordinator._hikvision_isapi_performance_nic2_added = False  # type: ignore[attr-defined]
+
     async_add_entities(entities)
+
+    # Late-arrival listener: if the first refresh hasn't populated
+    # the second NIC yet, register it on the next update that has
+    # >= 2 interfaces.
+    if not coordinator._hikvision_isapi_performance_nic2_added:  # type: ignore[attr-defined]
+        coordinator.async_add_listener(
+            _make_nic2_listener(hass, entry, coordinator, async_add_entities, nic2_descs),
+        )
+
+
+def _make_nic2_listener(
+    hass: HomeAssistant,
+    entry: ConfigEntry,
+    coordinator: HikvisionISAPICoordinator,
+    async_add_entities: AddEntitiesCallback,
+    nic2_descs,
+):
+    """One-shot listener: register NIC 2 sensors when network_interfaces
+    reaches 2+ entries.
+    """
+
+    async def _on_update() -> None:
+        if getattr(coordinator, "_hikvision_isapi_performance_nic2_added", False):
+            return
+        ifaces = coordinator.network_interfaces
+        if not ifaces or len(ifaces) < 2:
+            return
+        coordinator._hikvision_isapi_performance_nic2_added = True  # type: ignore[attr-defined]
+        async_add_entities(
+            [HikvisionISAPISensor(coordinator, entry, d) for d in nic2_descs],
+        )
+
+    return _on_update
 
 
 class HikvisionISAPISensor(HikvisionISAPIEntity, SensorEntity):
