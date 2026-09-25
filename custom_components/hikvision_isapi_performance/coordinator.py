@@ -185,8 +185,13 @@ def _parse_system_status(root: ET.Element | None) -> dict[str, str]:
             _xml_text(root, "deviceStatus") or "Unknown"
         ),
         "cpuUtilization": cpu_util or "0",
-        "memoryUsage": mem_usage or "0",
-        "memoryAvailable": mem_avail or "0",
+        # v0.6.16: V4 NVR firmware reports memoryUsage as a decimal
+        # MB count (``"728.234375"``) with optional leading whitespace,
+        # V5 reports as integer (``"61"``). Use ``_safe_int_mb`` to
+        # accept both — pre-v0.6.16 this returned the raw text which
+        # sensors downstream could not coerce to a number.
+        "memoryUsage": str(_safe_int_mb(mem_usage) or 0),
+        "memoryAvailable": str(_safe_int_mb(mem_avail) or 0),
         "uptime": _xml_text(root, "deviceUpTime") or _xml_text(root, "uptime") or "0",
         "rebootCount": _xml_text(root, "totalRebootCount"),
         "cpuDescription": _xml_text(cpu, "cpuDescription") if cpu is not None else None,
@@ -378,33 +383,99 @@ def _parse_network_interfaces(
 ) -> list[dict[str, Any]]:
     """Parse ``/ISAPI/System/Network/interfaces`` response.
 
-    Hikvision's response shape is::
+    Two shapes are accepted.
 
-        <NetworkInterfaceList>
-          <NetworkInterface>
-            <id>1</id>
-            <interfaceName>LAN1</interfaceName>
-            <IPAddress>192.168.1.10</IPAddress>
+    **V5 firmware** (most IPCs / NVRs)::
+
+        <NetworkInterface>
+          <IPAddress>192.168.1.10</IPAddress>
+          <subnetMask>255.255.255.0</subnetMask>
+          <DefaultGateway>192.168.1.1</DefaultGateway>
+          ...
+        </NetworkInterface>
+
+    **V4 firmware** (e.g. ``DS-7708N-I4`` V4.1.18) — the IP fields
+    are nested inside another ``<IPAddress>`` element::
+
+        <NetworkInterface>
+          <IPAddress>
+            <ipVersion>dual</ipVersion>
+            <addressingType>static</addressingType>
+            <ipAddress>10.18.176.65</ipAddress>
             <subnetMask>255.255.255.0</subnetMask>
-            <DefaultGateway>192.168.1.1</DefaultGateway>
-            <MTU>1500</MTU>
-            <MACAddress>00:11:22:33:44:55</MACAddress>
-            ...
-          </NetworkInterface>
-        </NetworkInterfaceList>
+            <DefaultGateway>
+              <ipAddress>10.18.176.1</ipAddress>
+            </DefaultGateway>
+          </IPAddress>
+          ...
+        </NetworkInterface>
+
+    ``_ip_field`` tries the V4 nested path first, then falls back
+    to the V5 direct path — so both shapes return the real
+    address.
     """
     if root is None:
         return []
+
+    def _ip_field(iface: ET.Element, tag: str) -> str:
+        """Read an IP-like field by its leaf tag name. Supports
+        both V5 direct schema and V4 NVR nested schema.
+
+        For ``tag="ipAddress"``:
+        - V4 NVR: ``<IPAddress><ipAddress>10.x.x.x</ipAddress></IPAddress>``
+        - V5: ``<IPAddress>10.x.x.x</IPAddress>`` (the uppercase
+          ``<IPAddress>`` element's TEXT directly).
+
+        For ``tag="subnetMask"``:
+        - V4 NVR: ``<IPAddress><subnetMask>...</subnetMask></IPAddress>``
+        - V5: ``<subnetMask>...</subnetMask>`` (direct child of
+          ``<NetworkInterface>``).
+
+        For ``tag="DefaultGateway"``:
+        - V4 NVR: ``<IPAddress><DefaultGateway><ipAddress>...</ipAddress></DefaultGateway></IPAddress>``
+        - V5: ``<DefaultGateway>...</DefaultGateway>`` (direct text).
+        """
+        # For ipAddress: try nested IPAddress/ipAddress (V4), then
+        # direct IPAddress text (V5). Note: V5 uses <IPAddress>
+        # (uppercase) as direct text, but findtext("IPAddress")
+        # returns the text 192.168.1.10 — confirmed in debug.
+        if tag == "ipAddress":
+            nested = iface.find("IPAddress/ipAddress")
+            if nested is not None and nested.text:
+                return nested.text.strip()
+            return (iface.findtext("IPAddress") or "").strip()
+        # For subnetMask: try nested, then direct.
+        if tag == "subnetMask":
+            nested = iface.find("IPAddress/subnetMask")
+            if nested is not None and nested.text:
+                return nested.text.strip()
+            return (iface.findtext("subnetMask") or "").strip()
+        # For DefaultGateway: try nested (V4 has 2-level), then direct.
+        if tag == "DefaultGateway":
+            for path in (
+                "IPAddress/DefaultGateway/ipAddress",
+                "IPAddress/DefaultGateway",
+                "DefaultGateway",
+            ):
+                found = iface.find(path)
+                if found is not None and found.text:
+                    return found.text.strip()
+            return ""
+        # Generic fallback: try nested form, then direct.
+        nested = iface.find(f"IPAddress/{tag}")
+        if nested is not None and nested.text:
+            return nested.text.strip()
+        return (iface.findtext(tag) or "").strip()
+
     out: list[dict[str, Any]] = []
     for iface in root.findall(".//NetworkInterface"):
         out.append(
             {
                 "id": _xml_text(iface, "id") or "",
                 "name": _xml_text(iface, "interfaceName") or "",
-                "ip_address": _xml_text(iface, "IPAddress") or "",
-                "subnet_mask": _xml_text(iface, "subnetMask") or "",
-                "default_gateway": _xml_text(iface, "DefaultGateway")
-                or "",
+                "ip_address": _ip_field(iface, "ipAddress"),
+                "subnet_mask": _ip_field(iface, "subnetMask"),
+                "default_gateway": _ip_field(iface, "DefaultGateway"),
                 "mtu": _safe_int_mb(_xml_text(iface, "MTU")),
                 "mac_address": _xml_text(iface, "MACAddress") or "",
             }
@@ -540,11 +611,24 @@ def _parse_channel_status_extended(
 
 
 def _safe_int_mb(value: Any) -> int | None:
-    """Best-effort int parsing that handles leading/trailing whitespace."""
+    """Best-effort numeric parsing for ISAPI capacity fields.
+
+    Accepts both integer strings (``"61"`` — V5 firmware reports
+    memoryUsage as an integer MB count) and decimal strings
+    (``"728.234375"`` — V4 NVR firmware reports decimal MB with
+    whitespace prefix). Returns ``int(round(...))`` so callers can
+    safely treat the result as an integer MB value while we lose
+    no precision in the round-trip.
+
+    Pre-v0.6.16 this used ``int()`` directly, which rejected V4
+    firmware's decimal fields with ``ValueError`` → ``None``
+    → memory sensors showed "Unknown" on every V4 NVR despite
+    the device returning perfectly valid data.
+    """
     if value is None:
         return None
     try:
-        return int(str(value).strip())
+        return int(round(float(str(value).strip())))
     except (TypeError, ValueError):
         return None
 
@@ -723,41 +807,60 @@ class HikvisionISAPICoordinator(DataUpdateCoordinator[HikvisionISAPIData]):
     async def _fetch_storage(
         self, client: ISAPIClient,
     ) -> ET.Element | None:
-        """``GET /ISAPI/ContentMgmt/storage``, fall back to
-        ``/ISAPI/System/Storage/hardDisks`` on V4.
+        """Try multiple storage endpoints; return the first that
+        returns valid XML.
 
-        Returns the parsed XML root or None. Storage failure is
-        typical (IPCs don't have storage), so DEBUG level is
-        appropriate when the primary returns 404.
+        Sequence (v0.6.16):
+
+        1. ``/ISAPI/ContentMgmt/storage`` — V5 firmware (DS-2CDxxx
+           IPCs and most V5 NVRs).
+        2. ``/ISAPI/System/Storage/hardDisks`` — V4 NVR/DVR (e.g.
+           ``DS-7708N-I4`` V4.1.18 uses one of these schemas).
+        3. ``/ISAPI/ContentMgmt/storage/hddList`` — alternate V4
+           path (some V4.8x firmwares).
+
+        Empirically, the user's V4 ``DS-7708N-I4`` returns
+        ``<ResponseStatus>`` 4 "Invalid Operation" for ALL three
+        (NVR.txt line 34-46). On such devices no storage path
+        exists and the user sees empty storage fields. We log the
+        fact at INFO so the user can confirm via the diagnostic
+        summary log; storage sensors stay Unknown.
+
+        Returns the parsed XML root or None. IPCs typically have
+        no storage at all — INFO on first call, then silent.
         """
-        try:
-            return await client.get_xml(ISAPI_CONTENT_MGMT_STORAGE)
-        except ISAPIError as exc:
-            if exc.status_code == 404:
-                # V4 NVR / DVR — fall back to legacy hardDisks.
-                try:
-                    return await client.get_xml(
-                        ISAPI_SYSTEM_STORAGE_HARDDISKS
-                    )
-                except ISAPIError as exc2:
-                    _LOGGER.info(
-                        "%s storage endpoints (ContentMgmt, "
-                        "System/Storage) both failed: %s",
-                        self._host, exc2,
-                    )
-                    return None
-            # Non-404 — also no storage.
-            _LOGGER.info(
-                "%s /ISAPI/ContentMgmt/storage failed: %s",
-                self._host, exc,
-            )
-            return None
-        except (ISAPIAuthError, ISAPIConnectionError) as exc:
-            _LOGGER.warning(
-                "%s /ISAPI/ContentMgmt/storage failed: %s",
-                self._host, exc,
-            )
-            return None
+        endpoints = (
+            ISAPI_CONTENT_MGMT_STORAGE,
+            ISAPI_SYSTEM_STORAGE_HARDDISKS,
+            "/ISAPI/ContentMgmt/storage/hddList",
+        )
+        for endpoint in endpoints:
+            try:
+                return await client.get_xml(endpoint)
+            except (ISAPIAuthError, ISAPIConnectionError) as exc:
+                _LOGGER.warning(
+                    "%s storage endpoint %s failed: %s",
+                    self._host, endpoint, exc,
+                )
+                return None
+            except ISAPIError as exc:
+                # 404 / 4xx on storage is *normal* on IPCs and some
+                # V4 firmwares. Try the next endpoint; only after
+                # all three fail do we declare "missing" for this
+                # refresh.
+                _LOGGER.info(
+                    "%s storage endpoint %s returned %s; trying next",
+                    self._host, endpoint, exc,
+                )
+                continue
+        _LOGGER.info(
+            "%s storage: all candidate endpoints returned errors; "
+            "no storage data this refresh (expected on IPCs without "
+            "HDDs, and on V4 NVRs where firmware refuses the storage "
+            "endpoint entirely)",
+            self._host,
+        )
+        return None
 
     async def _fetch_network_interfaces(
         self, client: ISAPIClient,
