@@ -299,13 +299,19 @@ def _parse_capabilities(root: ET.Element | None) -> dict[str, Any]:
 
     # v0.6.32: video input channel count. Hikvision firmwares use
     # multiple tag names across versions:
-    # - V5.x: <VideoInputChannelNums>
-    # - Some V4 / older firmwares: <videoInputChannelNums> (camelCase)
+    # - V5.x NVR: <VideoInputChannelNums>
+    # - Some V4 / older NVR: <videoInputChannelNums> (camelCase)
     # - Some firmware variants: <ChannelNum>, <InputChannelNum>
-    # Try each in order; first hit wins.
+    # - v0.6.33: V5 IPC puts the count under
+    #   <DeviceCap/SysCap/VideoCap/videoInputPortNums> — completely
+    #   different schema from NVR. Walk candidates in order; first
+    #   hit wins.
     out["video_input_channels"] = _find_int_field(
         root,
         candidates=(
+            ".//VideoCap/videoInputPortNums",
+            ".//videoInputPortNums",
+            ".//VideoInputPortNums",
             ".//VideoInputChannelNums",
             ".//videoInputChannelNums",
             ".//InputChannelNum",
@@ -314,6 +320,10 @@ def _parse_capabilities(root: ET.Element | None) -> dict[str, Any]:
     )
 
     # v0.6.32: ethernet / NIC count — same multi-tag problem.
+    # v0.6.33: V5 IPC puts NIC count under
+    # <DeviceCap/SysCap/NetworkCap/...> without an obvious integer
+    # leaf (the NetworkCap block is mostly boolean flags). NIC count
+    # for IPCs stays ``None`` until we find a confirmed response.
     out["ethernet_interfaces"] = _find_int_field(
         root,
         candidates=(
@@ -440,7 +450,7 @@ def _parse_storage(root: ET.Element | None) -> dict[str, Any]:
     """Parse ``/ISAPI/ContentMgmt/storage`` (V5) or
     ``/ISAPI/System/Storage/hardDisks`` (V4 NVR fallback).
 
-    Two Hikvision shapes are accepted.
+    Three Hikvision shapes are accepted.
 
     **V5 (newer firmware)** — direct fields::
 
@@ -474,6 +484,24 @@ def _parse_storage(root: ET.Element | None) -> dict[str, Any]:
     all HDDs and convert to MB (1 MB = 1 000 000 bytes, matching
     V5's MB convention; 1 GiB = 1024³ would give slightly different
     numbers, but consistency with V5 wins here).
+
+    **V5 IPC firmware** (e.g. ``DS-2CD`` series) -- same shape but
+    **lowercase** tags, capacity already in **MB**::
+
+        <storage>
+          <hddList size="8">
+            <hdd>
+              <id>1</id>
+              <hddName>hdde</hddName>
+              <capacity>119290</capacity>
+              <freeSpace>0</freeSpace>
+              <status>ok</status>
+            </hdd>
+          </hddList>
+        </storage>
+
+    The parser auto-detects per-HDD: a hit on ``<size>`` means
+    V4 (BYTES); only ``<capacity>`` hits means V5 IPC (MB).
     """
     empty = {
         "total_mb": None,
@@ -499,42 +527,82 @@ def _parse_storage(root: ET.Element | None) -> dict[str, Any]:
             "status": status or "unknown",
         }
 
-    # V4 path: sum over <hddList><HDD><size>/<freeSize>.
+    # V4 NVR + V5 IPC fallback: per-HDD list.
+    # v0.6.33: V5 IPC uses lowercase <hdd> with
+    # <capacity>/<freeSpace> in MB; V4 NVR uses <HDD> with
+    # <size>/<freeSize> in bytes. Try both tag names.
     hdds = root.findall(".//HDD")
+    if not hdds:
+        hdds = root.findall(".//hdd")
     if not hdds:
         return empty
 
-    total_bytes = 0
-    free_bytes = 0
+    total_units = 0  # bytes for V4, MB for V5 IPC
+    free_units = 0
     status_aggregate = "normal"
     seen = False
+    is_bytes = False  # detected per-loop; once True stays True
     for hdd in hdds:
+        # Prefer V4 uppercase tags first; fall back to V5 IPC
+        # lowercase tags. Detection of unit: if <size> is hit first,
+        # the response is V4 (bytes); if only <capacity> hits, it's
+        # V5 IPC (MB).
         size_raw = _safe_int_mb(_xml_text(hdd, "size"))
+        if size_raw is None:
+            size_raw = _safe_int_mb(_xml_text(hdd, "capacity"))
+        else:
+            is_bytes = True
         free_raw = _safe_int_mb(_xml_text(hdd, "freeSize"))
+        if free_raw is None:
+            free_raw = _safe_int_mb(_xml_text(hdd, "freeSpace"))
         if size_raw is None and free_raw is None:
             continue
         seen = True
         if size_raw is not None:
-            total_bytes += size_raw
+            total_units += size_raw
         if free_raw is not None:
-            free_bytes += free_raw
-        hdd_status = _xml_text(hdd, "status")
-        if hdd_status and hdd_status != "normal":
+            free_units += free_raw
+        # V4 NVR uses ``<status>normal</status>``/``error``/etc.
+        # V5 IPC uses ``<status>ok</status>``/``error``/etc.
+        hdd_status = _xml_text(hdd, "status") or ""
+        if hdd_status and hdd_status not in ("normal", "ok"):
             status_aggregate = "exception"
 
     if not seen:
         return empty
 
-    return {
-        # Convert bytes → MB using decimal (1 MB = 10^6 bytes) so
-        # the value matches V5's MB convention.
-        "total_mb": round(total_bytes / 1_000_000, 1) if total_bytes else None,
-        "used_mb": (
-            round((total_bytes - free_bytes) / 1_000_000, 1)
-            if total_bytes and free_bytes
+    if is_bytes:
+        # V4 NVR units: BYTES -> MB (1 MB = 10^6 bytes).
+        total_mb = (
+            round(total_units / 1_000_000, 1) if total_units else None
+        )
+        # v0.6.33 fix: free==0 (full disk) used to leave
+        # used_mb=None because of falsy ``and``. Compute used as
+        # total - free whenever total > 0 AND free was actually
+        # read off the device (not None).
+        used_mb = (
+            round((total_units - free_units) / 1_000_000, 1)
+            if total_units and free_units is not None
             else None
-        ),
-        "free_mb": round(free_bytes / 1_000_000, 1) if free_bytes else None,
+        )
+        free_mb = (
+            round(free_units / 1_000_000, 1)
+            if free_units is not None else None
+        )
+    else:
+        # V5 IPC units: already in MB.
+        total_mb = round(total_units, 1) if total_units else None
+        used_mb = (
+            round(total_units - free_units, 1)
+            if total_units and free_units is not None
+            else None
+        )
+        free_mb = round(free_units, 1) if free_units is not None else None
+
+    return {
+        "total_mb": total_mb,
+        "used_mb": used_mb,
+        "free_mb": free_mb,
         "status": status_aggregate,
     }
 

@@ -63,7 +63,7 @@ that SNMP doesn't expose.
 3. **Configuration → System → User Management** — create a user with permissions to view live view + control PTZ (for the relevant features). The default `admin` user works for all of this.
 4. **Configuration → PTZ → Preset** (PTZ cameras only) — add presets via the device UI. The integration can move to preset 1, 2, 3, etc. via the `ptz_goto_preset` service.
 
-## Entities (v0.6.30)
+## Entities (v0.6.33)
 
 The full list of entities this integration exposes. Channel N
 sensors are emitted **per detected channel** (not just channel 1
@@ -243,7 +243,7 @@ MIT © 2026 43457. See `LICENSE`.
 3. **配置 → 系统 → 用户管理** — 建一个用户，至少给"预览"和"控制 PTZ"权限。默认 `admin` 用户能搞定所有功能。
 4. **配置 → PTZ → 预置位**（PTZ 摄像机才有）— 在设备 UI 上加预置位。集成可以通过 `ptz_goto_preset` service 移动到预置位 1、2、3...
 
-## 实体（v0.6.30）
+## 实体（v0.6.33）
 
 本集成暴露的完整实体清单。通道 N 类 sensor 是**每个检测到的通道**都生成一份（v0.6.27 开始）；网卡 2 类 sensor 只有**设备确实有 2 个物理网卡**才出现（v0.6.23）。
 
