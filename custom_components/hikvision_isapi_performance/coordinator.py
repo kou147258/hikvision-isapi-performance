@@ -442,6 +442,35 @@ def _parse_channels(root: ET.Element | None) -> list[dict[str, Any]]:
     return out
 
 
+def _stream_owner_channel(ch: ET.Element) -> str | None:
+    """Return the *physical* channel number a ``<StreamingChannel>`` belongs to.
+
+    ``/ISAPI/Streaming/channels`` lists one entry per **stream**, not per
+    camera. A single IPC returns several entries (main / sub / third
+    stream) that all belong to physical channel 1.
+
+    The owner lives inside ``<Video>`` and uses one of two tag names
+    depending on the firmware schema — both verified on the live fleet:
+
+    - ``<dynVideoInputChannelID>`` — NVR schema, and newer IPCs that use
+      ``101``/``102`` style stream ids (DS-2DF8C832MX-ZDK 摄像机10,
+      DS-2CD8027F 摄像机12, DS-8632N-I8 录像机01).
+    - ``<videoInputChannelID>`` — older IPC schema using ``1``/``2``/``3``
+      style stream ids (DS-FB2127 仓库).
+
+    Returns ``None`` when the field is absent, so the caller can fall back
+    to the stream's own id instead of silently dropping the channel.
+    """
+    video = ch.find("Video")
+    if video is None:
+        return None
+    for tag in ("dynVideoInputChannelID", "videoInputChannelID"):
+        value = _xml_text(video, tag)
+        if value:
+            return value
+    return None
+
+
 def _parse_streaming_channels_list(
     root: ET.Element | None,
 ) -> list[dict[str, Any]]:
@@ -470,45 +499,83 @@ def _parse_streaming_channels_list(
     The docstring above previously documented the wrong tag names, which
     is how the mistake survived review.
 
-    ``recordStatus`` is genuinely absent from this shape — that value
+    v0.7.7: streams are grouped by their physical channel number. Before
+    this, one channel entry was emitted per ``<StreamingChannel>``, but on
+    an IPC each of those entries is a *stream* (main / sub / third), not a
+    separate camera. Probed live: the 摄像机10 IPC returned 5 entries that
+    all belong to physical channel 1, producing 5 duplicate sets of camera
+    / recording-switch / binary-sensor / per-channel-sensor entities for a
+    single camera. Grouping uses ``_stream_owner_channel``; a stream with
+    no owner field falls back to its own id so nothing is silently dropped.
+
+    Aggregation rules per group:
+
+    - ``name``: first non-empty ``channelName`` (all streams of a camera
+      normally carry the same name).
+    - ``online``: OR across streams -- a camera counts as online when any
+      of its streams is enabled.
+    - ``recording``: first non-``None`` value, so a real state is never
+      overwritten by an absent ``recordStatus``.
+
+    Output is sorted numerically by channel id (falling back to string
+    order) so the result is deterministic regardless of the order the
+    device happens to list its streams in.
+
+    ``recordStatus`` is genuinely absent from this shape -- that value
     comes from the per-channel status endpoint (see _tri_record_status).
     """
     if root is None:
         return []
-    out: list[dict[str, Any]] = []
+
+    grouped: dict[str, dict[str, Any]] = {}
     for ch in root.findall(".//StreamingChannel"):
-        ch_id = (
-            _xml_text(ch, "id")
-            or _xml_text(ch, "videoInputChannelID")
-            or ""
-        )
-        if not ch_id:
+        stream_id = _xml_text(ch, "id") or ""
+        # Group key = physical channel number when the firmware reports
+        # one, else the stream's own id (nothing gets dropped).
+        owner = _stream_owner_channel(ch)
+        key = owner or stream_id or _xml_text(ch, "videoInputChannelID") or ""
+        if not key:
             continue
-        out.append(
-            {
-                "id": ch_id,
-                # v0.7.6: the real element is <channelName>, not <name>.
-                # <name> is kept as a fallback for firmware variants.
-                "name": (
-                    _xml_text(ch, "channelName")
-                    or _xml_text(ch, "name")
-                    or f"Channel {ch_id}"
-                ),
-                # v0.7.6: the real element is <enabled>, not <online>.
-                # Probed on DS-FB2127 (true) and DS-FB2127 sub-stream
-                # (false), so both polarities are real. <online> stays as
-                # a fallback.
-                "online": (
-                    _xml_text(ch, "enabled") or _xml_text(ch, "online") or ""
-                ).lower() == "true",
-                # v0.7.4: None when <recordStatus> is absent — see
-                # _tri_record_status. This shape genuinely has no
-                # recordStatus, so hardcoding False reported a false
-                # negative.
-                "recording": _tri_record_status(_xml_text(ch, "recordStatus")),
+
+        # v0.7.6: the real element is <channelName>, not <name>.
+        # <name> is kept as a fallback for firmware variants.
+        name = _xml_text(ch, "channelName") or _xml_text(ch, "name") or ""
+        # v0.7.6: the real element is <enabled>, not <online>. Probed on
+        # DS-FB2127 (true) and its sub-stream (false), so both polarities
+        # are real. <online> stays as a fallback.
+        online = (
+            _xml_text(ch, "enabled") or _xml_text(ch, "online") or ""
+        ).lower() == "true"
+        # v0.7.4: None when <recordStatus> is absent — see
+        # _tri_record_status.
+        recording = _tri_record_status(_xml_text(ch, "recordStatus"))
+
+        existing = grouped.get(key)
+        if existing is None:
+            grouped[key] = {
+                "id": key,
+                "name": name or f"Channel {key}",
+                "online": online,
+                "recording": recording,
             }
-        )
-    return out
+            continue
+
+        # Merge into the already-seen entry for this physical channel.
+        if not existing["name"] or existing["name"] == f"Channel {key}":
+            if name:
+                existing["name"] = name
+        existing["online"] = bool(existing["online"]) or online
+        if existing["recording"] is None and recording is not None:
+            existing["recording"] = recording
+
+    def _sort_key(item: dict[str, Any]) -> tuple[int, str]:
+        cid = str(item["id"])
+        try:
+            return (0, f"{int(cid):08d}")
+        except (TypeError, ValueError):
+            return (1, cid)
+
+    return sorted(grouped.values(), key=_sort_key)
 
 
 def _parse_storage(root: ET.Element | None) -> dict[str, Any]:

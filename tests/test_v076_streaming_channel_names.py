@@ -99,18 +99,42 @@ def _parse(xml: str, fn):
 
 
 def test_ipc_channel_name_comes_from_channelName_element():
-    """IPC name must be the real camera name, not the "Channel 1" fallback."""
+    """IPC name must be the real camera name, not the "Channel 1" fallback.
+
+    v0.7.7: the fixture's two streams both carry ``videoInputChannelID=1``,
+    i.e. they are the main and sub stream of ONE camera, so they now group
+    into a single channel. The point of this test is unchanged — the name
+    must come from ``<channelName>``, not the ``Channel {id}``` fallback.
+    """
     channels = _parse(IPC_STREAMING_XML, _parse_streaming_channels_list)
-    assert len(channels) == 2
+    assert len(channels) == 1, (
+        "two streams of the same camera must group into one channel"
+    )
+    assert channels[0]["id"] == "1"
     assert channels[0]["name"] == "摄像机06"
-    assert channels[1]["name"] == "摄像机06"
 
 
 def test_ipc_online_comes_from_enabled_element():
-    """``<enabled>`` is this shape's online indicator."""
+    """``<enabled>`` is this shape's online indicator.
+
+    The grouped 仓库 channel merges an enabled main stream with a disabled
+    sub stream, so it is online (a camera streaming on any stream counts
+    as online). To keep the original v0.7.6 guarantee that ``enabled=false``
+    is NOT coerced to True, assert it directly on a single disabled stream.
+    """
     channels = _parse(IPC_STREAMING_XML, _parse_streaming_channels_list)
     assert channels[0]["online"] is True
-    assert channels[1]["online"] is False, (
+
+    # A lone camera whose only stream is disabled must read offline.
+    disabled_xml = """<StreamingChannelList>
+<StreamingChannel><id>1</id><channelName>Cam</channelName>
+<enabled>false</enabled>
+<Video><videoInputChannelID>1</videoInputChannelID></Video>
+</StreamingChannel>
+</StreamingChannelList>"""
+    disabled = _parse(disabled_xml, _parse_streaming_channels_list)
+    assert len(disabled) == 1
+    assert disabled[0]["online"] is False, (
         "enabled=false must not be coerced to True"
     )
 
