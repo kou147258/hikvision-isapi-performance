@@ -903,6 +903,17 @@ def _parse_streaming_detail(
         )
         if bitrate is None and video is not None:
             bitrate = _safe_int_mb(_xml_text(video, "constantBitRate"))
+        # v0.7.1: VBR streams report neither of the above. The user's
+        # DS-8632N-I8 returns ``<videoQualityControlType>VBR`` with
+        # ``<vbrUpperCap>16384</vbrUpperCap>`` and no constantBitRate,
+        # so video_bitrate_kbps stayed None on every VBR channel.
+        #
+        # vbrUpperCap is the configured ceiling (the "码率上限" shown in
+        # the device web UI), not the instantaneous rate — it is the
+        # closest meaningful configured value for a VBR stream, and
+        # beats showing "unknown".
+        if bitrate is None and video is not None:
+            bitrate = _safe_int_mb(_xml_text(video, "vbrUpperCap"))
         audio_codec = (
             _xml_text(audio, "audioCompressionType") if audio is not None else None
         )
