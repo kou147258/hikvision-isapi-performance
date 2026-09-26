@@ -47,7 +47,13 @@ async def async_setup_entry(
     if not getattr(coordinator, "_hikvision_isapi_performance_switch_added", False):
         coordinator._hikvision_isapi_performance_switch_added = False  # type: ignore[attr-defined]
 
-        async def _on_update() -> None:
+        # v0.7.3: was ``async def`` and therefore never ran — HA calls
+        # ``async_add_listener`` callbacks synchronously and discards the
+        # result, so the coroutine was never awaited. Because platforms are
+        # set up BEFORE the first refresh, ``coordinator.channels`` is empty
+        # at setup time and this listener was the only path that could
+        # register the per-channel recording switches. Body has no await.
+        def _on_update() -> None:
             if getattr(coordinator, "_hikvision_isapi_performance_switch_added", False):
                 return
             if coordinator.data is None:

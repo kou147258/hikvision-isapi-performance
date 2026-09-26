@@ -4,6 +4,7 @@ integration without a full HA install.
 
 from __future__ import annotations
 
+import dataclasses
 import os
 import sys
 import types
@@ -87,18 +88,39 @@ _install_stub("homeassistant.components.camera", {
 })
 
 # Components — sensor
-def _sed_init(self, **kwargs):
-    """Stub __init__ that accepts any kwargs (real HA is a dataclass)."""
-    for k, v in kwargs.items():
-        setattr(self, k, v)
+# Real HA declares ``SensorEntityDescription`` as a frozen dataclass, and
+# the integration subclasses it with ``@dataclass(frozen=True,
+# kw_only=True)``. A plain-class stub broke that: the subclass's
+# ``@dataclass`` could not inherit ``key`` / ``translation_key`` / etc.
+# from a non-dataclass base, so importing sensor.py raised
+# ``TypeError: __init__() got an unexpected keyword argument 'key'``.
+# The old tests never hit this because they read sensor.py with regex
+# instead of importing it.
+@dataclasses.dataclass(frozen=True, kw_only=True)
+class _SensorEntityDescriptionStub:
+    key: str = ""
+    name: str | None = None
+    translation_key: str | None = None
+    icon: str | None = None
+    device_class: object = None
+    state_class: object = None
+    native_unit_of_measurement: object = None
+    suggested_display_precision: int | None = None
+    options: object = None
+    entity_category: object = None
+    has_entity_name: bool | None = None
 
 
 _install_stub("homeassistant.components.sensor", {
-    "SensorDeviceClass": types.SimpleNamespace(DURATION="duration"),
-    "SensorEntity": type("SensorEntity", (), {}),
-    "SensorEntityDescription": type(
-        "SensorEntityDescription", (), {"__init__": _sed_init},
+    "SensorDeviceClass": types.SimpleNamespace(
+        DURATION="duration",
+        FREQUENCY="frequency",
+        DATA_RATE="data_rate",
+        DATA_SIZE="data_size",
+        PERCENTAGE="percentage",
     ),
+    "SensorEntity": type("SensorEntity", (), {}),
+    "SensorEntityDescription": _SensorEntityDescriptionStub,
     "SensorStateClass": types.SimpleNamespace(
         MEASUREMENT="measurement", TOTAL_INCREASING="total_increasing"
     ),

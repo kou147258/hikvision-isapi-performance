@@ -192,9 +192,17 @@ def _make_binary_listener(
     coordinator: HikvisionISAPICoordinator,
     async_add_entities: AddEntitiesCallback,
 ):
-    """Coordinator listener: add per-channel binary entities on late data."""
+    """Coordinator listener: add per-channel binary entities on late data.
 
-    async def _on_update() -> None:
+    v0.7.3: was ``async def`` and therefore never ran — HA calls
+    ``async_add_listener`` callbacks synchronously and discards the
+    result, so the coroutine was never awaited. Because platforms are
+    set up BEFORE the first refresh, ``coordinator.channels`` is empty
+    at setup time and this listener was the only path that could
+    register per-channel online/recording/motion sensors.
+    """
+
+    def _on_update() -> None:
         if getattr(coordinator, "_hikvision_isapi_performance_binary_added", False):
             return
         if coordinator.data is None:

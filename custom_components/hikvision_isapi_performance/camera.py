@@ -80,7 +80,18 @@ def _make_camera_listener(
     coordinator: HikvisionISAPICoordinator,
     async_add_entities: AddEntitiesCallback,
 ):
-    async def _on_update() -> None:
+    """Coordinator listener: add camera entities when channels arrive late.
+
+    v0.7.3: was ``async def`` and therefore never ran (HA calls these
+    callbacks synchronously and discards the result). Since platforms are
+    set up before the first refresh, ``coordinator.channels`` is empty at
+    setup time, so this dead listener meant NO camera entity was ever
+    created on a fresh install.
+    """
+
+    def _on_update() -> None:
+        # One-shot guard: without this the listener re-adds the same
+        # cameras on EVERY coordinator refresh.
         if getattr(coordinator, "_hikvision_isapi_performance_camera_added", False):
             return
         if coordinator.data is None:

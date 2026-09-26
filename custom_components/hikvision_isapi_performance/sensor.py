@@ -598,6 +598,9 @@ async def async_setup_entry(
     # already be available from a previous coordinator refresh);
     # otherwise listen for late arrival.
     nic2_descs = tuple(d for d in SENSORS if d.key.startswith("network_2_"))
+    # v0.7.3: storage descriptors, needed by the late-arrival listener
+    # (see the storage listener registration below).
+    storage_descs = tuple(d for d in SENSORS if d.key.startswith("storage_"))
 
     # Per-channel streaming detail + name sensors (v0.6.27).
     # v0.6.18 added 5 static ``channel_1_*`` sensors; users with
@@ -677,6 +680,23 @@ async def async_setup_entry(
         _make_per_channel_listener(hass, entry, coordinator, async_add_entities),
     )
 
+    # v0.7.3: late-arrival listener for storage sensors.
+    #
+    # ``__init__.py`` forwards platforms BEFORE kicking off the first
+    # refresh as a background task, so this function runs while
+    # ``coordinator.device_type`` is still ``""``. ``is_recorder`` is
+    # therefore False at setup time, the storage_* descriptors get
+    # filtered out above, and — unlike NIC 2 and per-channel — nothing
+    # ever added them back. That is why the user's NVR/DVR showed no
+    # storage entities at all despite the parser returning
+    # ``{'total_mb': 953869, ...}`` correctly.
+    if not is_recorder:
+        coordinator.async_add_listener(
+            _make_storage_listener(
+                hass, entry, coordinator, async_add_entities, storage_descs,
+            ),
+        )
+
 
 def _make_nic2_listener(
     hass: HomeAssistant,
@@ -687,9 +707,17 @@ def _make_nic2_listener(
 ):
     """One-shot listener: register NIC 2 sensors when network_interfaces
     reaches 2+ entries.
+
+    v0.7.3: this was ``async def`` and therefore never ran. HA's
+    ``async_add_listener`` expects ``Callable[[], None]`` and
+    ``async_update_listeners`` calls each callback synchronously,
+    discarding the result — an ``async def`` here produced a coroutine
+    that nobody awaited, so NIC 2 sensors never appeared on the user's
+    dual-NIC NVR. The body contains no ``await``, so dropping ``async``
+    is the whole fix.
     """
 
-    async def _on_update() -> None:
+    def _on_update() -> None:
         if getattr(coordinator, "_hikvision_isapi_performance_nic2_added", False):
             return
         ifaces = coordinator.network_interfaces
@@ -698,6 +726,48 @@ def _make_nic2_listener(
         coordinator._hikvision_isapi_performance_nic2_added = True  # type: ignore[attr-defined]
         async_add_entities(
             [HikvisionISAPISensor(coordinator, entry, d) for d in nic2_descs],
+        )
+
+    return _on_update
+
+
+def _make_storage_listener(
+    hass: HomeAssistant,
+    entry: ConfigEntry,
+    coordinator: HikvisionISAPICoordinator,
+    async_add_entities: AddEntitiesCallback,
+    storage_descs,
+):
+    """One-shot listener: register storage sensors once device_type is known.
+
+    ``async_setup_entry`` runs before the first refresh completes, so
+    ``coordinator.device_type`` is ``""`` and the NVR/DVR gate rejects the
+    storage_* descriptors. This listener re-checks on the next update and
+    adds them if the device turns out to be a recorder.
+
+    Must stay a plain sync function: HA's ``async_update_listeners``
+    calls callbacks synchronously and discards the result, so an
+    ``async def`` here would never execute (the defect fixed for the
+    NIC 2 / per-channel listeners in the same release).
+
+    IPCs never satisfy the gate, so they keep no storage entities —
+    an IPC has no HDD and those sensors would only ever read "unknown".
+    """
+    from .const import (
+        DEVICE_TYPE_DVR,
+        DEVICE_TYPE_NETWORK_VIDEO_RECORDER,
+    )
+
+    def _on_update() -> None:
+        if getattr(coordinator, "_hikvision_isapi_performance_storage_added", False):
+            return
+        if coordinator.device_type not in (
+            DEVICE_TYPE_NETWORK_VIDEO_RECORDER, DEVICE_TYPE_DVR,
+        ):
+            return
+        coordinator._hikvision_isapi_performance_storage_added = True  # type: ignore[attr-defined]
+        async_add_entities(
+            [HikvisionISAPISensor(coordinator, entry, d) for d in storage_descs],
         )
 
     return _on_update
@@ -718,6 +788,32 @@ def _make_nic2_listener(
 # ``None`` and the entities render "unknown".
 
 
+def _streaming_id_candidates(channel_id: str) -> list[str]:
+    """Return the streaming-channel ids that may carry ``channel_id``'s data.
+
+    Hikvision numbers streaming channels as ``{channel}{stream}`` — the
+    main stream is ``01``, sub ``02``, third ``04``. So NVR channel 2's
+    main stream is id ``"201"``.
+
+    But ``coordinator.channels`` is populated from *different* sources
+    depending on device type:
+
+    - **IPC** — channels come from ``/Streaming/channels``, so their ids
+      already match the streaming ids exactly (``"1"``, ``"2"``, ``"3"``).
+    - **NVR/DVR** — channels come from ``InputProxyChannelList``, whose ids
+      are plain ``"1".."N"`` and never match.
+
+    Trying the id verbatim first keeps the IPC path exact and lets an
+    explicit ``"1"`` entry win over a coincidental ``"101"``, then falls
+    back to the ``{channel}01`` convention for recorders.
+    """
+    candidates = [channel_id]
+    stripped = channel_id.strip()
+    if stripped.isdigit():
+        candidates.append(f"{int(stripped)}01")
+    return candidates
+
+
 def _channel_streaming_field(channel_id: str, field: str):
     """Build a ``value_fn`` that reads ``field`` from a specific channel.
 
@@ -735,10 +831,16 @@ def _channel_streaming_field(channel_id: str, field: str):
     def _fn(data) -> Any:
         if data is None:
             return None
-        for ch in data.streaming_channel_detail.get("channels", []) or []:
-            if ch.get("id") == channel_id:
-                value = ch.get(field)
-                return _or_none(value) if use_or_none else value
+        channels = data.streaming_channel_detail.get("channels", []) or []
+        # v0.7.3: match against every candidate id, in priority order.
+        # Pre-fix this compared ``ch["id"] == channel_id`` only, so on
+        # NVRs ("1" vs "101") every channel except the first — which the
+        # legacy fallback below happened to cover — rendered unknown.
+        for candidate in _streaming_id_candidates(channel_id):
+            for ch in channels:
+                if ch.get("id") == candidate:
+                    value = ch.get(field)
+                    return _or_none(value) if use_or_none else value
         # Fallback: if the per-channel list doesn't include this
         # id (e.g. the parser collapsed it), the legacy
         # ``first_channel`` shape is still useful for channel 1
@@ -856,6 +958,10 @@ def _make_per_channel_listener(
     Mirrors the NIC 2 listener pattern. Tracks the channel ids we
     already registered so we don't double-register after a reload
     or duplicate the sync block.
+
+    v0.7.3: was ``async def`` and never ran (see ``_make_nic2_listener``
+    for the full explanation). Body has no ``await``; dropping ``async``
+    is the fix.
     """
     already_ids: set[str] = set(
         getattr(
@@ -865,7 +971,7 @@ def _make_per_channel_listener(
         ) or []
     )
 
-    async def _on_update() -> None:
+    def _on_update() -> None:
         current_ids = {
             str(ch.get("id", "")) for ch in coordinator.channels
         }
