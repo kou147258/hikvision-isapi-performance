@@ -187,8 +187,10 @@ class HikvisionISAPISensor(HikvisionISAPIEntity, SensorEntity):
         # Per-channel streaming detail
         if self._channel is not None:
             ch_details = data.streaming_channel_detail if hasattr(data, 'streaming_channel_detail') else {}
-            ch_data = ch_details.get(str(self._channel), {})
-            return _or_none(ch_data.get(key.replace(f"channel_{{N}}_", "")))
+            # Try int key first (coordinator stores int), then str fallback
+            ch_data = ch_details.get(self._channel) or ch_details.get(str(self._channel), {})
+            detail_key = key.replace(f"channel_{{N}}_", "")
+            return _or_none(ch_data.get(detail_key))
 
         # Computed values
         if key == "memory_usage_percent":

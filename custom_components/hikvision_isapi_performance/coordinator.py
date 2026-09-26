@@ -76,7 +76,7 @@ def normalize_device_type(raw: str) -> str:
         return "nvr"
     if "dvr" in lower:
         return "dvr"
-    if "ipc" in lower or "camera" in lower:
+    if "ipc" in lower or "camera" in lower or "zoom" in lower or "dome" in lower:
         return "ipcamera"
     return lower
 
@@ -187,8 +187,23 @@ class HikvisionISAPICoordinator(DataUpdateCoordinator[HikvisionISAPIData]):
     @staticmethod
     def _parse_system_status(xml_text: str) -> dict[str, Any]:
         root = ET.fromstring(xml_text)
+
+        # CPU: try flat first (V4 NVR), then nested (V5 IPC)
+        cpu_raw = root.findtext("cpuUtilization")
+        if cpu_raw is None:
+            cpu_elem = root.find(".//CPUList/CPU")
+            if cpu_elem is not None:
+                cpu_raw = cpu_elem.findtext("cpuUtilization")
+
+        # Memory: try flat first (V4 NVR), then nested (V5 IPC)
         mem_usage_raw = root.findtext("memoryUsage")
         mem_avail_raw = root.findtext("memoryAvailable")
+        if mem_usage_raw is None:
+            mem_elem = root.find(".//MemoryList/Memory")
+            if mem_elem is not None:
+                mem_usage_raw = mem_elem.findtext("memoryUsage")
+                mem_avail_raw = mem_elem.findtext("memoryAvailable")
+
         mem_usage = _safe_float(mem_usage_raw)
         mem_avail = _safe_float(mem_avail_raw)
 
@@ -196,11 +211,14 @@ class HikvisionISAPICoordinator(DataUpdateCoordinator[HikvisionISAPIData]):
         if mem_usage > 0 and mem_avail > mem_usage * 50:
             mem_avail = mem_avail / 1024
 
+        # Uptime: try "upTime" (V4) then "deviceUpTime" (V5 IPC)
+        uptime_raw = root.findtext("upTime") or root.findtext("deviceUpTime")
+
         return {
-            "cpuUtilization": _safe_int(root.findtext("cpuUtilization")),
-            "memoryUsage": mem_usage,
-            "memoryAvailable": mem_avail,
-            "uptime": _or_none(root.findtext("upTime")),
+            "cpuUtilization": _safe_int(cpu_raw) if cpu_raw is not None else None,
+            "memoryUsage": mem_usage if mem_usage > 0 else None,
+            "memoryAvailable": mem_avail if mem_avail > 0 else None,
+            "uptime": _or_none(uptime_raw),
         }
 
     @staticmethod
@@ -301,35 +319,42 @@ class HikvisionISAPICoordinator(DataUpdateCoordinator[HikvisionISAPIData]):
             ip_field = None
             subnet_field = None
             gw_field = None
+            mac = None
+            mtu = None
 
-            # V4 nested: IPAddress/IPAddress
             ip_addr_elem = iface.find("IPAddress")
             if ip_addr_elem is not None:
-                nested_ip = ip_addr_elem.findtext("IPAddress")
-                if nested_ip:
-                    ip_field = nested_ip
-                    subnet_field = ip_addr_elem.findtext("subnetMask")
+                # Real XML uses lowercase "ipAddress" inside IPAddress container
+                ip_field = (
+                    ip_addr_elem.findtext("ipAddress")
+                    or ip_addr_elem.findtext("IPAddress")
+                )
+                subnet_field = ip_addr_elem.findtext("subnetMask")
+                # Gateway is nested inside DefaultGateway/ipAddress
+                gw_elem = ip_addr_elem.find("DefaultGateway")
+                if gw_elem is not None:
+                    gw_field = gw_elem.findtext("ipAddress")
+                if not gw_field:
                     gw_field = ip_addr_elem.findtext("gateway")
 
-            # V5 direct
+            # V5 direct fallback
             if not ip_field:
-                ip_field = iface.findtext("IPAddress")
+                ip_field = (
+                    iface.findtext("ipAddress")
+                    or iface.findtext("IPAddress")
+                )
                 subnet_field = iface.findtext("subnetMask")
                 gw_field = iface.findtext("gateway")
 
-            # MAC: V4 Link/MACAddress, V5 direct
-            mac = iface.findtext("MACAddress")
+            # MAC: Link/MACAddress (both V4 and V5 use this nesting)
+            link = iface.find("Link")
+            if link is not None:
+                mac = link.findtext("MACAddress")
+                mtu = link.findtext("MTU")
             if not mac:
-                link = iface.find("Link")
-                if link is not None:
-                    mac = link.findtext("MACAddress")
-
-            # MTU: V5 NetworkInterface/MTU, V4 direct
-            mtu = iface.findtext("MTU")
+                mac = iface.findtext("MACAddress")
             if mtu is None:
-                net = iface.find("NetworkInterface")
-                if net is not None:
-                    mtu = net.findtext("MTU")
+                mtu = iface.findtext("MTU")
 
             interfaces.append({
                 "ip": _or_none(ip_field),
@@ -346,20 +371,24 @@ class HikvisionISAPICoordinator(DataUpdateCoordinator[HikvisionISAPIData]):
         root = ET.fromstring(xml_text)
         caps: dict[str, Any] = {}
 
-        # PTZ capability
+        # PTZ capability — search anywhere in tree (nested under DeviceCap)
         ptz = root.find(".//PTZCtrlCap")
         if ptz is not None:
             caps["ptz"] = True
 
-        # Video input channels
-        vic = root.findtext("videoInputChannelNums")
+        # Video input channels — try multiple locations
+        # V4 NVR: DeviceCap > VideoCap > videoInputPortNums
+        # V5 IPC: SysCap > VideoCap > videoInputPortNums
+        vic = root.findtext(".//videoInputChannelNums")
         if vic is None:
-            # V5 IPC: VideoCap/videoInputPortNums
-            vcap = root.find("VideoCap")
-            if vcap is not None:
-                vic = vcap.findtext("videoInputPortNums")
+            vic = root.findtext(".//videoInputPortNums")
         if vic is not None:
             caps["video_input_channels"] = _safe_int(vic)
+
+        # Snapshot capability
+        snapshot = root.findtext(".//isSupportSnapshot")
+        if snapshot == "true":
+            caps["snapshot"] = True
 
         return caps
 
@@ -367,7 +396,16 @@ class HikvisionISAPICoordinator(DataUpdateCoordinator[HikvisionISAPIData]):
     def _parse_time(xml_text: str) -> dict[str, Any]:
         root = ET.fromstring(xml_text)
         mode = root.findtext("timeMode") or root.findtext("mode")
-        return {"time_mode": _or_none(mode)}
+        # V5 IPC uses "localTime", V4 NVR uses "currentDeviceTime"
+        device_time = (
+            root.findtext("currentDeviceTime")
+            or root.findtext("localTime")
+            or root.findtext("deviceTime")
+        )
+        return {
+            "time_mode": _or_none(mode),
+            "deviceTime": _or_none(device_time),
+        }
 
     @staticmethod
     def _parse_streaming_detail(
@@ -404,7 +442,8 @@ class HikvisionISAPICoordinator(DataUpdateCoordinator[HikvisionISAPIData]):
             audio = ch.find("Audio")
             if audio is not None:
                 detail["audio_codec"] = _or_none(
-                    audio.findtext("audioCodecType")
+                    audio.findtext("audioCompressionType")
+                    or audio.findtext("audioCodecType")
                 )
 
             if detail:
@@ -542,6 +581,9 @@ class HikvisionISAPICoordinator(DataUpdateCoordinator[HikvisionISAPIData]):
                 data.channels = await self._fetch_channels(
                     client, self.device_type
                 )
+                # If deviceInfo didn't have channelCount, derive from channel list
+                if not data.device_info.get("channelCount") and data.channels:
+                    data.device_info["channelCount"] = len(data.channels)
                 data.storage = await self._fetch_storage(client)
                 data.network_interfaces = await self._fetch_network(client)
                 self.network_interfaces = data.network_interfaces
