@@ -35,6 +35,7 @@ from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
 from .const import (
+    DEVICE_TYPE_DVR,
     DEVICE_TYPE_NETWORK_VIDEO_RECORDER,
     DOMAIN,
     ISAPI_CONTENT_MGMT_STREAMING_PROXY_CHANNELS_PICTURE,
@@ -131,41 +132,58 @@ class HikvisionISAPICamera(HikvisionISAPIEntity, Camera):
     def channel_id(self) -> str:
         return self._channel["id"]
 
-    async def async_camera_image(
-        self,
-        width: int | None = None,
-        height: int | None = None,
-    ) -> bytes | None:
-        """Return a single still frame from the device's snapshot endpoint.
+    def _stream_id(self) -> str:
+        """Return the snapshot stream id for this channel.
 
-        Endpoint is chosen by ``coordinator.data.device_type``:
-        - IPC → ``/ISAPI/Streaming/channels/{id}/picture`` (direct)
-        - NVR / DVR → ``/ISAPI/ContentMgmt/StreamingProxy/channels/{id}/picture``
-          (NVR-side proxy that grabs a snapshot of the mounted IPC
-          channel — the IPC endpoint returns 400 on NVRs)
+        Hikvision numbers streams ``{channel}{stream}`` where the main
+        stream is ``01``: channel 1 → ``101``, channel 2 → ``201``,
+        channel 10 → ``1001``.
 
-        Hikvision's ``/picture`` endpoint ignores ``width`` /
-        ``height`` parameters and returns the full-resolution JPEG; the
-        HA frontend scales it to fit the card. We forward
-        ``width`` / ``height`` via query string for documentation only.
+        On NVR/DVR ``coordinator.channels`` comes from
+        ``InputProxyChannelList`` whose ids are plain ``"1".."N"``, so the
+        convention must be applied. Probed on the user's DS-7708N-I4:
+        ``.../StreamingProxy/channels/1/picture`` → HTTP 503,
+        ``.../StreamingProxy/channels/101/picture`` → HTTP 200 + 30142 B
+        JPEG.
+
+        On IPCs the channel list comes from ``/Streaming/channels``
+        itself, so the ids are already in streaming form (``"1"``,
+        ``"2"``, ``"3"`` on the DS-FB2127) and are returned untouched —
+        rewriting them would break a path that already works.
         """
-        coordinator: HikvisionISAPICoordinator = self.coordinator
-        if coordinator.data is None:
-            return None
-        device_type = coordinator.data.device_type
-        if device_type == DEVICE_TYPE_NETWORK_VIDEO_RECORDER:
-            # NVR — use the proxy endpoint to grab a snapshot of a
-            # mounted IPC channel. The constant contains a Python
-            # ``{id}`` placeholder; format() resolves it to the
-            # channel id at request time.
+        cid = str(self.channel_id).strip()
+        if self._is_recorder() and cid.isdigit():
+            return f"{int(cid)}01"
+        return cid
+
+    def _is_recorder(self) -> bool:
+        """True for NVR and DVR — devices that host remote IP channels."""
+        dt = ""
+        if self.coordinator.data is not None:
+            dt = self.coordinator.data.device_type
+        return dt in (DEVICE_TYPE_NETWORK_VIDEO_RECORDER, DEVICE_TYPE_DVR)
+
+    def _snapshot_path(self, width: int | None = None, height: int | None = None) -> str:
+        """Build the ISAPI snapshot path for this camera.
+
+        v0.7.4: DVR was falling through to the IPC branch because the
+        guard tested only ``DEVICE_TYPE_NETWORK_VIDEO_RECORDER``, even
+        though this module's own docstring says "NVR / DVR". On the
+        user's DS-7708N-I4 (``deviceType=DVR``) the direct endpoint
+        returns HTTP 400, so no NVR/DVR camera ever rendered an image.
+
+        Both recorder types now use the proxy endpoint.
+        """
+        stream_id = self._stream_id()
+        if self._is_recorder():
             path = ISAPI_CONTENT_MGMT_STREAMING_PROXY_CHANNELS_PICTURE.format(
-                id=self.channel_id
+                id=stream_id
             )
         else:
-            # IPC / DVR — direct local endpoint.
-            path = f"{ISAPI_STREAMING_CHANNELS}/{self.channel_id}/picture"
-        # Add width / height query params for documentation; Hikvision
-        # ignores them but third-party integrators might check.
+            path = f"{ISAPI_STREAMING_CHANNELS}/{stream_id}/picture"
+
+        # Hikvision ignores these, but forward them so the request is
+        # self-documenting for third-party integrators / packet captures.
         if width or height:
             qs = []
             if width:
@@ -173,6 +191,30 @@ class HikvisionISAPICamera(HikvisionISAPIEntity, Camera):
             if height:
                 qs.append(f"videoResolutionHeight={int(height)}")
             path = f"{path}?{'&'.join(qs)}"
+        return path
+
+    async def async_camera_image(
+        self,
+        width: int | None = None,
+        height: int | None = None,
+    ) -> bytes | None:
+        """Return a single still frame from the device's snapshot endpoint.
+
+        Endpoint selection lives in ``_snapshot_path`` (v0.7.4) so it can
+        be unit-tested without issuing a network request:
+
+        - IPC → ``/ISAPI/Streaming/channels/{id}/picture`` (direct)
+        - NVR / DVR → ``/ISAPI/ContentMgmt/StreamingProxy/channels/{stream}/picture``
+          (the recorder-side proxy for a mounted IP channel)
+
+        Hikvision's ``/picture`` endpoint ignores ``width`` / ``height``
+        and returns the full-resolution JPEG; the HA frontend scales it
+        to fit the card. They are forwarded for documentation only.
+        """
+        coordinator: HikvisionISAPICoordinator = self.coordinator
+        if coordinator.data is None:
+            return None
+        path = self._snapshot_path(width=width, height=height)
 
         try:
             async with ISAPIClient(
@@ -184,7 +226,20 @@ class HikvisionISAPICamera(HikvisionISAPIEntity, Camera):
                 use_https=coordinator._use_https,
                 timeout=10,
             ) as client:
-                return await client.get_bytes(path)
+                data = await client.get_bytes(path)
         except (ISAPIConnectionError, ISAPIError) as exc:
             _LOGGER.debug("Camera image fetch failed for %s: %s", path, exc)
             return None
+
+        # Some firmwares answer 200 with an XML error body (e.g. the
+        # 503 "Device Busy" page seen while probing the NVR) instead of
+        # raising. Returning that as an "image" makes HA's card show a
+        # broken preview, so verify the JPEG magic bytes first.
+        if not data or data[:2] != b"\xff\xd8":
+            _LOGGER.debug(
+                "Camera snapshot for %s was not a JPEG (%d bytes); discarding",
+                path,
+                len(data or b""),
+            )
+            return None
+        return data

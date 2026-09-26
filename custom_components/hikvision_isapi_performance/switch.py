@@ -96,7 +96,15 @@ class HikvisionISAPIRecordingSwitch(HikvisionISAPIEntity, SwitchEntity):
             return None
         for ch in self.coordinator.data.channels:
             if ch["id"] == self.channel_id:
-                return bool(ch.get("recording"))
+                # v0.7.4: ``recording`` is tri-state (see
+                # coordinator._tri_record_status). ``None`` means no
+                # endpoint reported <recordStatus>, so the switch must
+                # render "unknown" instead of asserting "off" — the old
+                # ``bool(ch.get("recording"))`` coerced None to False.
+                recording = ch.get("recording")
+                if recording is None:
+                    return None
+                return bool(recording)
         return None
 
     async def async_turn_on(self, **kwargs: Any) -> None:

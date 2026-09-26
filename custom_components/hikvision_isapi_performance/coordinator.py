@@ -385,6 +385,27 @@ def _find_int_field(
     return None
 
 
+def _tri_record_status(value: str | None) -> bool | None:
+    """Map a ``recordStatus`` XML value to True / False / None.
+
+    ``None`` means "the device never reported this", which is different
+    from ``False`` ("the device says it is not recording"). Conflating
+    them is what made every NVR channel display "录像中: 未在运行":
+    neither ``InputProxyChannelList`` nor
+    ``/ISAPI/ContentMgmt/InputProxy/channels/<id>/status`` carries a
+    ``recordStatus`` element on the user's DS-7708N-I4 / DS-8632N-I8
+    (probed: 0 occurrences), and every ``/ISAPI/ContentMgmt/Recording/*``
+    endpoint returned 404. There is simply no data source, so the entity
+    must render ``unknown`` instead of asserting a false negative.
+    """
+    if value is None:
+        return None
+    s = value.strip().lower()
+    if not s:
+        return None
+    return s == "recording"
+
+
 def _parse_channels(root: ET.Element | None) -> list[dict[str, Any]]:
     """Parse ``/ISAPI/ContentMgmt/InputProxy/channels`` response.
 
@@ -411,8 +432,11 @@ def _parse_channels(root: ET.Element | None) -> list[dict[str, Any]]:
                 "id": ch_id,
                 "name": _xml_text(ch, "name") or f"Channel {ch_id}",
                 "online": (_xml_text(ch, "online") or "").lower() == "true",
-                "recording": (_xml_text(ch, "recordStatus") or "").lower()
-                == "recording",
+                # v0.7.4: None when the firmware omits <recordStatus>.
+                # Was hardcoded False, which made every NVR channel show
+                # "录像中: 未在运行" despite no data source — see
+                # _tri_record_status.
+                "recording": _tri_record_status(_xml_text(ch, "recordStatus")),
             }
         )
     return out
@@ -423,21 +447,31 @@ def _parse_streaming_channels_list(
 ) -> list[dict[str, Any]]:
     """Parse ``/ISAPI/Streaming/channels`` response (IPC-side).
 
-    Hikvision's response shape is::
+    Hikvision's actual response shape — captured verbatim from the
+    DS-FB2127 (10.18.176.18) and DS-8632N-I8 (192.168.10.9)::
 
         <StreamingChannelList>
           <StreamingChannel>
             <id>1</id>
-            <videoInputChannelID>1</videoInputChannelID>
-            <name>Camera 1</name>            (optional)
-            <online>true</online>           (optional)
-            ...
+            <channelName>摄像机06</channelName>
+            <enabled>true</enabled>
+            <Video>
+              <videoInputChannelID>1</videoInputChannelID>   (IPC)
+              <dynVideoInputChannelID>1</dynVideoInputChannelID>  (NVR)
+              ...
+            </Video>
           </StreamingChannel>
         </StreamingChannelList>
 
-    Unlike the InputProxy list, this response shape doesn't always
-    include ``recordStatus`` or ``online`` — those come from the
-    per-channel status endpoint instead.
+    v0.7.6: this read ``name`` and ``online``, but the real elements are
+    ``channelName`` and ``enabled``. Both lookups returned None, so every
+    IPC channel displayed the fallback label "Channel 1" and its
+    channel-online binary sensor read False despite the camera streaming.
+    The docstring above previously documented the wrong tag names, which
+    is how the mistake survived review.
+
+    ``recordStatus`` is genuinely absent from this shape — that value
+    comes from the per-channel status endpoint (see _tri_record_status).
     """
     if root is None:
         return []
@@ -453,10 +487,25 @@ def _parse_streaming_channels_list(
         out.append(
             {
                 "id": ch_id,
-                "name": _xml_text(ch, "name") or f"Channel {ch_id}",
-                "online": (_xml_text(ch, "online") or "").lower() == "true",
-                "recording": (_xml_text(ch, "recordStatus") or "").lower()
-                == "recording",
+                # v0.7.6: the real element is <channelName>, not <name>.
+                # <name> is kept as a fallback for firmware variants.
+                "name": (
+                    _xml_text(ch, "channelName")
+                    or _xml_text(ch, "name")
+                    or f"Channel {ch_id}"
+                ),
+                # v0.7.6: the real element is <enabled>, not <online>.
+                # Probed on DS-FB2127 (true) and DS-FB2127 sub-stream
+                # (false), so both polarities are real. <online> stays as
+                # a fallback.
+                "online": (
+                    _xml_text(ch, "enabled") or _xml_text(ch, "online") or ""
+                ).lower() == "true",
+                # v0.7.4: None when <recordStatus> is absent — see
+                # _tri_record_status. This shape genuinely has no
+                # recordStatus, so hardcoding False reported a false
+                # negative.
+                "recording": _tri_record_status(_xml_text(ch, "recordStatus")),
             }
         )
     return out
@@ -920,6 +969,17 @@ def _parse_streaming_detail(
         video_input = _safe_int_mb(
             _xml_text(video, "videoInputChannelID") if video is not None else None
         )
+        # v0.7.5: NVRs report the owning channel here instead. Probed on
+        # DS-8632N-I8 (192.168.10.9): every <Video> block carries
+        # <dynVideoInputChannelID> and NO <videoInputChannelID>, so
+        # video_input alone was None on NVRs and no stream tier could be
+        # derived. The IPC DS-FB2127 is the mirror image — it carries
+        # videoInputChannelID only. Both are kept as separate keys so
+        # consumers can tell "1" (real channel id) from an absent field.
+        dyn_video_input = _safe_int_mb(
+            _xml_text(video, "dynVideoInputChannelID")
+            if video is not None else None
+        )
         return {
             "id": _xml_text(ch, "id") or None,
             "video_codec": codec or None,
@@ -934,6 +994,7 @@ def _parse_streaming_detail(
             ),
             "video_bitrate_kbps": bitrate,
             "video_input_channel_id": video_input,
+            "dyn_video_input_channel_id": dyn_video_input,
             "audio_codec": audio_codec or None,
         }
 
@@ -976,13 +1037,15 @@ def _parse_channel_status(
     if root is None:
         return {
             "online": False,
-            "recording": False,
+            "recording": None,
             "motion_detected": False,
         }
     return {
         "online": (_xml_text(root, "online") or "").lower() == "true",
-        "recording": (_xml_text(root, "recordStatus") or "").lower()
-        == "recording",
+        # v0.7.4: None when <recordStatus> is absent — see
+        # _tri_record_status. Was False, which reported a false
+        # "not recording" on NVRs that never carry this field.
+        "recording": _tri_record_status(_xml_text(root, "recordStatus")),
         "motion_detected": (
             _xml_text(root, "motionDetection") or ""
         ).lower() == "true",
@@ -1015,7 +1078,9 @@ def _parse_channel_status_extended(
     if root is None:
         return {
             "online": False,
-            "recording": False,
+            # v0.7.4: None, not False — no XML means the device told us
+            # nothing, which must not render as "未在运行".
+            "recording": None,
             "motion_detected": False,
             "uptime": None,
             "reboot_count": None,
@@ -1030,9 +1095,11 @@ def _parse_channel_status_extended(
     sdcard = root.find(".//SDCardStatusInfo")
     return {
         "online": (_xml_text(root, "online") or "").lower() == "true",
-        "recording": (
-            (_xml_text(root, "recordStatus") or "").lower() == "recording"
-        ),
+        # v0.7.4: None when <recordStatus> is absent — see
+        # _tri_record_status. Probed on DS-7708N-I4 / DS-8632N-I8: the
+        # per-channel status response carries <online> but no
+        # <recordStatus>, so False here was a fabricated "not recording".
+        "recording": _tri_record_status(_xml_text(root, "recordStatus")),
         "motion_detected": (
             _xml_text(root, "motionDetection") or ""
         ).lower() == "true",
@@ -1744,7 +1811,19 @@ class HikvisionISAPICoordinator(DataUpdateCoordinator[HikvisionISAPIData]):
                 # returned at all (already handled by the early
                 # ``continue`` above).
                 ch["online"] = ch_status["online"]
-                ch["recording"] = ch_status["recording"]
+                # v0.7.4: ``recording`` is now tri-state. A ``None`` here
+                # means the status endpoint carried no <recordStatus>
+                # (true for every NVR probed in the user's fleet), so it
+                # must NOT clobber a value the channel list did supply.
+                # Only an explicit True/False from the fresher endpoint
+                # overrides the older one.
+                if ch_status["recording"] is not None:
+                    ch["recording"] = ch_status["recording"]
+                elif "recording" not in ch:
+                    # Neither source reported it — record the unknown
+                    # explicitly so the entity renders "unknown" rather
+                    # than falling through to a False default.
+                    ch["recording"] = None
                 ch["motion_detected"] = ch_status["motion_detected"]
                 # v0.5.0 — extended IPC health fields. The endpoint
                 # reports the device uptime (not the channel's); useful

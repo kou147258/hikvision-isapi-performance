@@ -814,6 +814,103 @@ def _streaming_id_candidates(channel_id: str) -> list[str]:
     return candidates
 
 
+# v0.7.5: stream tiers. Hikvision gives no explicit tier field — probed
+# on both DS-8632N-I8 and DS-FB2127, ``/ISAPI/Streaming/channels`` carries
+# no ``streamType``-style element. The tier is only derivable from the
+# stream id, and the two device families number ids differently:
+#
+#   NVR  DS-8632N-I8: id "101"/"102"/"104", owning channel in
+#                     Video/dynVideoInputChannelID = 1
+#                     → tier = id - channel*100
+#   IPC  DS-FB2127:   id "1"/"2"/"3",       owning channel in
+#                     Video/videoInputChannelID = 1
+#                     → tier = id
+TIER_LABELS: dict[int, str] = {1: "主码流", 2: "子码流", 3: "第三码流", 4: "第四码流"}
+# User-chosen scope: main + sub stream only.
+ACTIVE_TIERS: tuple[int, ...] = (1, 2)
+
+
+def _stream_tier(stream_id: str | None, owner_channel: int | None) -> int | None:
+    """Derive a stream's tier from its id and the channel that owns it.
+
+    ``owner_channel`` comes from ``dynVideoInputChannelID`` (NVR) or
+    ``videoInputChannelID`` (IPC). Returns ``None`` when the owner is
+    unknown — guessing would mislabel streams.
+    """
+    if stream_id is None or owner_channel is None:
+        return None
+    sid = str(stream_id).strip()
+    if not sid.isdigit():
+        return None
+    n = int(sid)
+    base = int(owner_channel) * 100
+    if n > base:
+        return n - base
+    return n
+
+
+def _tier_id_candidates(channel_id: str, tier: int) -> list[str]:
+    """Fallback ids when the XML omits both channel-id fields.
+
+    Hikvision's recorder convention is ``{channel}{tier:02d}``:
+    channel 2 tier 1 → ``"201"``, tier 2 → ``"202"``, tier 4 → ``"204"``.
+    This preserves the v0.7.3 behaviour for firmware that reports no
+    owner field.
+    """
+    stripped = channel_id.strip()
+    if not stripped.isdigit():
+        return []
+    return [f"{int(stripped)}{tier:02d}"]
+
+
+def _channel_tier_field(channel_id: str, tier: int, field: str):
+    """Build a ``value_fn`` reading ``field`` from one channel's one tier.
+
+    Matching prefers the explicit owner field over the id convention:
+    owner data is authoritative, while the ``{channel}{tier}`` guess is
+    only a fallback for firmware that omits it.
+    """
+    string_fields = {"video_codec", "video_resolution", "audio_codec"}
+    use_or_none = field in string_fields
+
+    def _pick(value):
+        return _or_none(value) if use_or_none else value
+
+    def _fn(data) -> Any:
+        if data is None:
+            return None
+        channels = data.streaming_channel_detail.get("channels", []) or []
+
+        # 1. Authoritative: match on the reported owning channel + tier.
+        for ch in channels:
+            owner = ch.get("dyn_video_input_channel_id")
+            if owner is None:
+                owner = ch.get("video_input_channel_id")
+            if owner is None:
+                continue
+            if str(owner) != str(channel_id):
+                continue
+            if _stream_tier(ch.get("id"), owner) == tier:
+                return _pick(ch.get(field))
+
+        # 2. Fallback: the {channel}{tier:02d} id convention.
+        for candidate in _tier_id_candidates(channel_id, tier):
+            for ch in channels:
+                if ch.get("id") == candidate:
+                    return _pick(ch.get(field))
+
+        # 3. IPC-style: ids are bare "1"/"2"/"3" and equal the tier.
+        for ch in channels:
+            sid = str(ch.get("id") or "").strip()
+            if sid.isdigit() and int(sid) == tier:
+                owner = ch.get("video_input_channel_id")
+                if owner is not None and str(owner) == str(channel_id):
+                    return _pick(ch.get(field))
+        return None
+
+    return _fn
+
+
 def _channel_streaming_field(channel_id: str, field: str):
     """Build a ``value_fn`` that reads ``field`` from a specific channel.
 
@@ -886,62 +983,69 @@ def _build_per_channel_entities(
     # Default-name fallback when the device doesn't return one.
     default_name = channel.get("name") or f"Channel {channel_id}"
 
-    # Translation keys are SHARED across all channels (e.g.
-    # ``channel_video_codec``). The entity's display name
-    # carries the channel number. HA looks up translations by
-    # translation_key so we reuse the same template for every
-    # channel — only the entity name (rendered by HA's
-    # ``_attr_name``) varies.
-    descs = [
-        HikvisionISAPISensorDescription(
-            key=f"channel_{channel_id}_video_codec",
-            translation_key="channel_video_codec",
-            name=f"通道 {channel_id} 视频编码",
-            icon="mdi:codec",
-            value_fn=_channel_streaming_field(channel_id, "video_codec"),
+    # v0.7.5: per-stream entities named after the camera and the stream
+    # tier — "摄像机12 主码流 视频编码" / "摄像机12 子码流 视频编码" — so a
+    # multi-stream NVR no longer shows one ambiguous value per channel.
+    #
+    # translation_key is deliberately None here. In real HA a
+    # translation_key takes precedence over ``name``, and every channel
+    # shares the same key, so all channels would render one identical
+    # label and the camera names would never surface. The literal name
+    # must be authoritative for these dynamic entities.
+    #
+    # Main-stream keys stay exactly as v0.7.4 emitted them
+    # (``channel_{id}_<field>``) so upgrading does not orphan entities
+    # already in the user's entity registry; the sub stream is the new
+    # ``channel_{id}_sub_<field>``.
+    field_specs = (
+        ("video_codec", "视频编码", "mdi:codec", None, None, None),
+        ("video_resolution", "分辨率", "mdi:aspect-ratio", None, None, None),
+        (
+            "video_frame_rate", "帧率", "mdi:speedometer",
+            SensorDeviceClass.FREQUENCY, SensorStateClass.MEASUREMENT, "fps",
         ),
-        HikvisionISAPISensorDescription(
-            key=f"channel_{channel_id}_video_resolution",
-            translation_key="channel_video_resolution",
-            name=f"通道 {channel_id} 分辨率",
-            icon="mdi:aspect-ratio",
-            value_fn=_channel_streaming_field(channel_id, "video_resolution"),
+        # The parser's field is video_bitrate_kbps; the entity key keeps
+        # the pre-v0.7.5 spelling video_bitrate for registry continuity.
+        (
+            "video_bitrate_kbps", "码率", "mdi:video",
+            SensorDeviceClass.DATA_RATE, SensorStateClass.MEASUREMENT, "kbps",
         ),
-        HikvisionISAPISensorDescription(
-            key=f"channel_{channel_id}_video_frame_rate",
-            translation_key="channel_video_frame_rate",
-            name=f"通道 {channel_id} 帧率",
-            device_class=SensorDeviceClass.FREQUENCY,
-            state_class=SensorStateClass.MEASUREMENT,
-            native_unit_of_measurement="fps",
-            icon="mdi:speedometer",
-            value_fn=_channel_streaming_field(channel_id, "video_frame_rate"),
-        ),
-        HikvisionISAPISensorDescription(
-            key=f"channel_{channel_id}_video_bitrate",
-            translation_key="channel_video_bitrate",
-            name=f"通道 {channel_id} 码率",
-            device_class=SensorDeviceClass.DATA_RATE,
-            state_class=SensorStateClass.MEASUREMENT,
-            native_unit_of_measurement="kbps",
-            icon="mdi:video",
-            value_fn=_channel_streaming_field(channel_id, "video_bitrate_kbps"),
-        ),
-        HikvisionISAPISensorDescription(
-            key=f"channel_{channel_id}_audio_codec",
-            translation_key="channel_audio_codec",
-            name=f"通道 {channel_id} 音频编码",
-            icon="mdi:music-clef",
-            value_fn=_channel_streaming_field(channel_id, "audio_codec"),
-        ),
+        ("audio_codec", "音频编码", "mdi:music-clef", None, None, None),
+    )
+    # Entity-key segment per tier: main keeps the legacy (unsuffixed) form.
+    tier_key_segment = {1: "", 2: "_sub"}
+    # Parser field name → entity key field name (bitrate differs).
+    key_field = {"video_bitrate_kbps": "video_bitrate"}
+
+    descs: list[HikvisionISAPISensorDescription] = []
+    for tier in ACTIVE_TIERS:
+        segment = tier_key_segment[tier]
+        tier_label = TIER_LABELS.get(tier, f"{tier}码流")
+        for field, label, icon, dev_class, state_class, unit in field_specs:
+            descs.append(
+                HikvisionISAPISensorDescription(
+                    key=f"channel_{channel_id}{segment}_{key_field.get(field, field)}",
+                    translation_key=None,
+                    name=f"{default_name} {tier_label} {label}",
+                    icon=icon,
+                    device_class=dev_class,
+                    state_class=state_class,
+                    native_unit_of_measurement=unit,
+                    value_fn=_channel_tier_field(channel_id, tier, field),
+                )
+            )
+
+    # One name sensor per channel (not per tier) — the tier is already in
+    # every other entity's name.
+    descs.append(
         HikvisionISAPISensorDescription(
             key=f"channel_{channel_id}_name",
-            translation_key="channel_name",
-            name=f"通道 {channel_id} 名称",
+            translation_key=None,
+            name=f"{default_name} 名称",
             icon="mdi:tag",
             value_fn=_channel_name_value(channel_id),
-        ),
-    ]
+        )
+    )
     return [
         HikvisionISAPISensor(coordinator, entry, desc) for desc in descs
     ]

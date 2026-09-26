@@ -295,7 +295,18 @@ class HikvisionISAPIChannelRecordingBinarySensor(
             return None
         for ch in self.coordinator.data.channels:
             if ch.get("id") == self._channel_id:
-                return bool(ch.get("recording", False))
+                # v0.7.4: ``recording`` is tri-state. ``None`` means no
+                # ISAPI endpoint reported a <recordStatus> — true for
+                # every NVR in the user's fleet (InputProxyChannelList
+                # and the per-channel /status both omit it, and every
+                # /ContentMgmt/Recording/* path returns 404). The old
+                # ``bool(ch.get("recording", False))`` turned that
+                # silence into "未在运行", asserting a fact the device
+                # never stated. Mirrors the motion sensor below.
+                recording = ch.get("recording")
+                if recording is None:
+                    return None
+                return bool(recording)
         return None
 
 
