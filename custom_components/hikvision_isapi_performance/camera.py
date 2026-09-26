@@ -1,50 +1,47 @@
-﻿"""Camera platform for Hikvision ISAPI.
-
-Each detected channel becomes one ``Camera`` entity that streams a
-single JPEG request to HA's camera component. The HA frontend uses
-the returned bytes to display a still image (refreshed by the
-camera component's standard ``async_camera_image`` polling).
-
-The snapshot endpoint differs by device type:
-
-- **IPC** (``deviceType=IPCamera``) — ``/ISAPI/Streaming/channels/{id}/picture``
-  on the device itself.
-- **NVR / DVR** (``deviceType=NetworkVideoRecorder`` / ``DVR``) — IPC
-  channels are mounted on the NVR, not local. The NVR-side proxy
-  endpoint ``/ISAPI/ContentMgmt/StreamingProxy/channels/{id}/picture``
-  returns the same JPEG. Using the IPC endpoint on an NVR returns
-  HTTP 400 (verified against DS-7708-I4 / DS-8632-I8 in the user
-  fleet).
-
-The device type comes from the coordinator's normalized
-``device_type`` field (``ipcamera`` / ``networkvideorecorder`` /
-``dvr``). A future v0.2+ release can add a continuous MJPEG stream
-via ``/ISAPI/Streaming/channels/{id}/httppreview`` for live video,
-but HA's built-in camera component only supports still images so
-that's out of scope here.
-"""
-
+"""Camera platform for Hikvision ISAPI Performance."""
 from __future__ import annotations
 
 import logging
-from typing import Any
 
 from homeassistant.components.camera import Camera
 from homeassistant.config_entries import ConfigEntry
-from homeassistant.core import HomeAssistant
+from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
-from .const import (
-    DEVICE_TYPE_NETWORK_VIDEO_RECORDER,
-    DOMAIN,
-    ISAPI_CONTENT_MGMT_STREAMING_PROXY_CHANNELS_PICTURE,
-    ISAPI_STREAMING_CHANNELS,
-)
-from .coordinator import HikvisionISAPICoordinator
+from .const import DOMAIN
 from .entity import HikvisionISAPIEntity
-from .isapi_client import ISAPIConnectionError, ISAPIClient, ISAPIError
+from .isapi_client import ISAPIClient
 
 _LOGGER = logging.getLogger(__name__)
+
+
+class HikvisionISAPICamera(HikvisionISAPIEntity, Camera):
+    """Representation of a Hikvision ISAPI camera."""
+
+    def __init__(self, coordinator, channel_id: int, channel_name: str) -> None:
+        super().__init__(coordinator)
+        self._channel_id = channel_id
+        self._attr_unique_id = f"{coordinator.unique_id}_camera_{channel_id}"
+        self._attr_name = channel_name or f"Channel {channel_id}"
+
+    async def async_camera_image(self, width: int | None = None, height: int | None = None) -> bytes | None:
+        """Return a still image response from the camera."""
+        try:
+            # [FIX #7] Pass verify_ssl from coordinator
+            client = ISAPIClient(
+                host=self.coordinator.host,
+                port=self.coordinator.port,
+                username=self.coordinator.username,
+                password=self.coordinator.password,
+                use_https=self.coordinator.use_https,
+                verify_ssl=self.coordinator.verify_ssl,
+            )
+            async with client:
+                url = f"/ISAPI/Streaming/channels/{self._channel_id}01/picture"
+                return await client.get_bytes(url)
+        except Exception:
+            _LOGGER.debug("Failed to get snapshot for channel %s", self._channel_id)
+            return None
 
 
 async def async_setup_entry(
@@ -52,128 +49,26 @@ async def async_setup_entry(
     entry: ConfigEntry,
     async_add_entities: AddEntitiesCallback,
 ) -> None:
-    """Set up camera entities from the coordinator's channel list."""
-    coordinator: HikvisionISAPICoordinator = hass.data[DOMAIN][entry.entry_id]
+    """Set up camera platform."""
+    coordinator = hass.data[DOMAIN][entry.entry_id]
+    added_channels: set[int] = set()
 
-    # v0.1.23 pattern (carried over from hikvision_snmp v0.1.23):
-    # do not wait for the first refresh; the coordinator's normal poll
-    # cycle populates data in the background. Register a listener for
-    # late-arriving channels so we don't miss any.
-    entities = [
-        HikvisionISAPICamera(coordinator, entry, ch)
-        for ch in coordinator.channels
-    ]
-    async_add_entities(entities)
-
-    if not getattr(coordinator, "_hikvision_isapi_performance_camera_added", False):
-        coordinator._hikvision_isapi_performance_camera_added = False  # type: ignore[attr-defined]
-        coordinator.async_add_listener(
-            _make_camera_listener(
-                hass, entry, coordinator, async_add_entities
-            )
-        )
-
-
-def _make_camera_listener(
-    hass: HomeAssistant,
-    entry: ConfigEntry,
-    coordinator: HikvisionISAPICoordinator,
-    async_add_entities: AddEntitiesCallback,
-):
-    async def _on_update() -> None:
-        if getattr(coordinator, "_hikvision_isapi_performance_camera_added", False):
+    @callback
+    def _add_cameras():
+        if not coordinator.data:
             return
-        if coordinator.data is None:
-            return
-        new_entities = [
-            HikvisionISAPICamera(coordinator, entry, ch)
-            for ch in coordinator.channels
-        ]
-        if not new_entities:
-            return
-        coordinator._hikvision_isapi_performance_camera_added = True  # type: ignore[attr-defined]
-        async_add_entities(new_entities)
+        # [FIX #1] Access attribute instead of .get()
+        channels = coordinator.data.channels if hasattr(coordinator.data, 'channels') else []
+        new_entities = []
+        for ch in channels:
+            ch_id = ch.get("id")
+            if ch_id is None or ch_id in added_channels:
+                continue
+            added_channels.add(ch_id)
+            name = ch.get("name", f"Channel {ch_id}")
+            new_entities.append(HikvisionISAPICamera(coordinator, ch_id, name))
+        if new_entities:
+            async_add_entities(new_entities)
 
-    return _on_update
-
-
-class HikvisionISAPICamera(HikvisionISAPIEntity, Camera):
-    """A still-image camera entity backed by Hikvision's /picture endpoint."""
-
-    _attr_translation_key = "camera"
-
-    def __init__(
-        self,
-        coordinator: HikvisionISAPICoordinator,
-        entry: ConfigEntry,
-        channel: dict[str, Any],
-    ) -> None:
-        HikvisionISAPIEntity.__init__(self, coordinator, entry)
-        Camera.__init__(self)
-        self._channel = channel
-        self._attr_unique_id = f"{entry.entry_id}_camera_{channel['id']}"
-        self._attr_translation_key = "camera"
-        # Use channel name (e.g. "Camera 1") as the entity name suffix.
-        self._attr_name = channel.get("name") or f"Channel {channel['id']}"
-
-    @property
-    def channel_id(self) -> str:
-        return self._channel["id"]
-
-    async def async_camera_image(
-        self,
-        width: int | None = None,
-        height: int | None = None,
-    ) -> bytes | None:
-        """Return a single still frame from the device's snapshot endpoint.
-
-        Endpoint is chosen by ``coordinator.data.device_type``:
-        - IPC → ``/ISAPI/Streaming/channels/{id}/picture`` (direct)
-        - NVR / DVR → ``/ISAPI/ContentMgmt/StreamingProxy/channels/{id}/picture``
-          (NVR-side proxy that grabs a snapshot of the mounted IPC
-          channel — the IPC endpoint returns 400 on NVRs)
-
-        Hikvision's ``/picture`` endpoint ignores ``width`` /
-        ``height`` parameters and returns the full-resolution JPEG; the
-        HA frontend scales it to fit the card. We forward
-        ``width`` / ``height`` via query string for documentation only.
-        """
-        coordinator: HikvisionISAPICoordinator = self.coordinator
-        if coordinator.data is None:
-            return None
-        device_type = coordinator.data.device_type
-        if device_type == DEVICE_TYPE_NETWORK_VIDEO_RECORDER:
-            # NVR — use the proxy endpoint to grab a snapshot of a
-            # mounted IPC channel. The constant contains a Python
-            # ``{id}`` placeholder; format() resolves it to the
-            # channel id at request time.
-            path = ISAPI_CONTENT_MGMT_STREAMING_PROXY_CHANNELS_PICTURE.format(
-                id=self.channel_id
-            )
-        else:
-            # IPC / DVR — direct local endpoint.
-            path = f"{ISAPI_STREAMING_CHANNELS}/{self.channel_id}/picture"
-        # Add width / height query params for documentation; Hikvision
-        # ignores them but third-party integrators might check.
-        if width or height:
-            qs = []
-            if width:
-                qs.append(f"videoResolutionWidth={int(width)}")
-            if height:
-                qs.append(f"videoResolutionHeight={int(height)}")
-            path = f"{path}?{'&'.join(qs)}"
-
-        try:
-            async with ISAPIClient(
-                host=coordinator._host,
-                port=coordinator._port,
-                username=coordinator._username,
-                password=coordinator._password,
-                verify_ssl=coordinator._verify_ssl,
-                use_https=coordinator._use_https,
-                timeout=10,
-            ) as client:
-                return await client.get_bytes(path)
-        except (ISAPIConnectionError, ISAPIError) as exc:
-            _LOGGER.debug("Camera image fetch failed for %s: %s", path, exc)
-            return None
+    _add_cameras()
+    entry.async_on_unload(coordinator.async_add_listener(_add_cameras))
