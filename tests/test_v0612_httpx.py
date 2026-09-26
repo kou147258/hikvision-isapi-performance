@@ -50,6 +50,14 @@ def _build_mock_client(handler) -> ISAPIClient:
 
     Setup is synchronous because ``httpx.AsyncClient(...)`` is a
     non-blocking constructor — only ``.request()`` is async.
+
+    NOTE: the transport MUST be passed to the constructor. httpx binds
+    the transport inside ``AsyncClient.__init__`` (into the mount table
+    consulted by ``_transport_for_url``); assigning ``client._transport``
+    afterwards has no effect. Pre-v0.7.1 this helper did exactly that, so
+    every request escaped to the real network and hit the live camera at
+    the fixture IP 10.18.176.10 — producing bogus failures and hammering
+    a production device.
     """
     client = ISAPIClient(
         host="10.18.176.10",
@@ -60,8 +68,8 @@ def _build_mock_client(handler) -> ISAPIClient:
     )
     real = httpx.AsyncClient(
         timeout=10.0, verify=False, follow_redirects=True,
+        transport=httpx.MockTransport(handler),
     )
-    real._transport = httpx.MockTransport(handler)  # type: ignore[attr-defined]
     client._client = real
     return client
 

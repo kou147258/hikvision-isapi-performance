@@ -33,11 +33,31 @@ import base64
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock
 
-from custom_components.hikvision_isapi_performance.isapi_client import (
-    ISAPIClient,
+import pytest
+
+# v0.7.1: this module is retired, not merely failing.
+#
+# It targets the pre-v0.6.12 aiohttp implementation: it imports
+# ``_build_basic_header`` (deleted when auth moved to httpx's built-in
+# ``DigestAuth``/``BasicAuth``) and patches ``client._session``, an
+# attribute the httpx client never had — it uses ``client._client``.
+# Both seams silently did nothing, so every test here issued REAL HTTP
+# requests to the fixture IP 10.18.176.10.
+#
+# The broken import also aborted pytest collection for the entire suite,
+# so not one test ran.
+#
+# Behaviour coverage moved to:
+#   tests/test_v0612_httpx.py           — digest/basic routing, sticky switch
+#   tests/test_v071_credentials_and_put.py — credential guard, PUT body replay
+pytest.skip(
+    "retired: targets the pre-v0.6.12 aiohttp client; superseded by "
+    "test_v0612_httpx.py and test_v071_credentials_and_put.py",
+    allow_module_level=True,
 )
-from custom_components.hikvision_isapi_performance.isapi_client import (
-    _build_basic_header,
+
+from custom_components.hikvision_isapi_performance.isapi_client import (  # noqa: E402
+    ISAPIClient,
 )
 
 

@@ -16,7 +16,31 @@ import asyncio
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock
 
-from custom_components.hikvision_isapi_performance.isapi_client import (
+import pytest
+
+# v0.7.1: retired — the fake-session seam no longer exists.
+#
+# These tests patch ``client._session``, an aiohttp-era attribute removed
+# in the v0.6.12 migration to httpx (which uses ``client._client``). The
+# patch was silently ignored, so each test issued REAL HTTP requests to
+# the fixture IP 10.18.176.10 and asserted against whatever the live
+# device happened to return.
+#
+# Behaviour coverage:
+#   - digest retry / unrecognized-challenge routing → test_v0612_httpx.py
+#   - PUT body + Content-Type replay across the digest retry
+#     → test_v071_credentials_and_put.py
+#
+# The NameError regression this file originally guarded (``content_type``
+# out of scope inside the retry path) cannot recur: the retry is now
+# httpx's own digest flow inside ``_request``.
+pytest.skip(
+    "retired: patches the removed aiohttp ``_session`` seam; superseded by "
+    "test_v0612_httpx.py and test_v071_credentials_and_put.py",
+    allow_module_level=True,
+)
+
+from custom_components.hikvision_isapi_performance.isapi_client import (  # noqa: E402
     ISAPIAuthError,
     ISAPIClient,
 )

@@ -41,6 +41,9 @@ from custom_components.hikvision_isapi_performance.isapi_client import (
 
 
 def _build_mock_client(handler) -> ISAPIClient:
+    # The transport must be passed to the constructor — httpx binds it
+    # inside __init__ and ignores later assignment to ``_transport``.
+    # See test_v0612_httpx.py for the full explanation.
     client = ISAPIClient(
         host="10.18.176.10",
         username="admin",
@@ -50,8 +53,8 @@ def _build_mock_client(handler) -> ISAPIClient:
     )
     real = httpx.AsyncClient(
         timeout=10.0, verify=False, follow_redirects=True,
+        transport=httpx.MockTransport(handler),
     )
-    real._transport = httpx.MockTransport(handler)  # type: ignore[attr-defined]
     client._client = real
     return client
 

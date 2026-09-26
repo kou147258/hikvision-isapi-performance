@@ -341,6 +341,22 @@ def _parse_capabilities(root: ET.Element | None) -> dict[str, Any]:
             types.append(dt.text.strip())
     out["device_types"] = types
 
+    # v0.7.1: PTZ capability. ``button.py`` and ``__init__.py`` both gate on
+    # ``coordinator.capabilities.get("ptz")``, but this parser never set that
+    # key — so PTZ direction buttons and the ``ptz_goto_preset`` service were
+    # never registered on ANY device (dead code since v0.6.19).
+    #
+    # ``<PTZCtrlCap>`` is the authoritative signal. It is nested deep in the
+    # tree (``DeviceCap/SysCap/...`` on V4 NVR, ``DeviceCap/PTZCtrlCap`` on
+    # V5 IPC), hence the ``.//`` recursive search.
+    #
+    # Deliberately NOT using "has presets" as the signal: the user's
+    # ``DS-FB2127`` V5.2.2 IPC lists 10 presets yet returns
+    # ``methodNotAllowed`` on ``/PTZCtrl/channels/01/continuous`` and omits
+    # ``<PTZCtrlCap>`` — it can read the preset table but cannot be driven.
+    # Gating on PTZCtrlCap keeps buttons off for such devices.
+    out["ptz"] = root.find(".//PTZCtrlCap") is not None
+
     return out
 
 
@@ -1741,9 +1757,35 @@ class HikvisionISAPICoordinator(DataUpdateCoordinator[HikvisionISAPIData]):
                     self._host, ch_id, exc,
                 )
 
+        # v0.7.1: PTZ detection. Pre-v0.7.1 this was::
+        #
+        #     "ptz": device_info.get("deviceType", "").lower()
+        #            in {"ptz", "ptzdome"}
+        #
+        # but no Hikvision firmware reports ``deviceType`` as literally
+        # "ptz"/"ptzdome" — the user's fleet returns ``IPZoom`` (DS-FB2127
+        # V5.2.2), ``DVR`` (DS-7708N-I4 V4.1.18) and ``NVR``
+        # (DS-7804N-R2/4P(C) V4.84.031). The comparison therefore never
+        # matched, ``capabilities["ptz"]`` was permanently False, and both
+        # consumers stayed dead on every device:
+        #   - button.py:78   → PTZ direction buttons never registered
+        #   - __init__.py:80 → ptz_goto_preset service never registered
+        #
+        # Authoritative signal is ``<PTZCtrlCap>`` in /System/capabilities,
+        # already parsed into ``system_capabilities["ptz"]``. The deviceType
+        # string comparison is kept only as a fallback for firmwares that
+        # omit PTZCtrlCap.
+        #
+        # Note this is deliberately NOT based on "device lists presets":
+        # the DS-FB2127 (deviceType ``IPZoom``) returns 10 presets yet
+        # answers ``methodNotAllowed`` on /PTZCtrl/channels/01/continuous and
+        # omits PTZCtrlCap — it can read the preset table but cannot be
+        # driven. For that reason ``ipzoom`` is NOT in the fallback set;
+        # PTZCtrlCap alone decides it, and it correctly evaluates False.
+        _device_type_lower = device_info.get("deviceType", "").lower()
         capabilities: dict[str, bool] = {
-            "ptz": device_info.get("deviceType", "").lower()
-            in {"ptz", "ptzdome"},
+            "ptz": bool(system_capabilities.get("ptz"))
+            or _device_type_lower in {"ptz", "ptzdome"},
         }
 
         # Cache the parsed fields for downstream platforms.

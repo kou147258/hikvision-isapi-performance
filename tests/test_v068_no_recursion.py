@@ -25,7 +25,28 @@ import asyncio
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock
 
-from custom_components.hikvision_isapi_performance.isapi_client import (
+import pytest
+
+# v0.7.1: retired — same dead ``_session`` seam as test_v063.
+#
+# Behaviour coverage:
+#   - surrogate / non-UTF-8 credential guard (the two
+#     ``*_with_surrogates_*`` cases) → test_v071_credentials_and_put.py.
+#     Worth noting this guard had actually REGRESSED: v0.6.8 added
+#     ``_validate_credentials_encoding``, the v0.6.12 httpx migration
+#     dropped it, and these tests could not catch that because their
+#     patch never took effect. Restored in v0.7.1.
+#   - no-recursion cases → structurally guaranteed now: ``_request`` has
+#     exactly two ``self._client.request`` call sites (original + one
+#     basic retry) and cannot recurse. Digest-vs-basic routing and the
+#     sticky auth switch are pinned by test_v0612_httpx.py.
+pytest.skip(
+    "retired: patches the removed aiohttp ``_session`` seam; superseded by "
+    "test_v0612_httpx.py and test_v071_credentials_and_put.py",
+    allow_module_level=True,
+)
+
+from custom_components.hikvision_isapi_performance.isapi_client import (  # noqa: E402
     ISAPIAuthError,
     ISAPIClient,
 )

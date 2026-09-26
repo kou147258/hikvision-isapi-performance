@@ -124,6 +124,33 @@ def _extract_challenge_lower(headers: httpx.Headers) -> str:
     return (headers.get("WWW-Authenticate", "") or "").strip().lower()
 
 
+def _validate_credentials_encodable(username: str, password: str) -> None:
+    """Raise ``ISAPIAuthError`` if either credential can't encode to UTF-8.
+
+    v0.7.1: restores the v0.6.8 guard lost in the v0.6.12 httpx
+    migration. httpx encodes credentials in ``DigestAuth.__init__`` /
+    ``BasicAuth.__init__``, so a lone surrogate (``"\\ud800"``) raises a
+    bare ``UnicodeEncodeError`` during ISAPIClient construction — long
+    before any request, and with no context about which credential was
+    at fault.
+
+    We name only the offending field, never its value: a password would
+    otherwise land verbatim in the HA log file.
+    """
+    for field, value in (("username", username), ("password", password)):
+        if not isinstance(value, str):
+            continue
+        try:
+            value.encode("utf-8")
+        except UnicodeEncodeError as exc:
+            raise ISAPIAuthError(
+                f"ISAPI {field} contains characters that cannot be "
+                f"encoded as UTF-8 ({exc.reason}). Re-enter the "
+                f"credential using only characters supported by the "
+                f"device."
+            ) from exc
+
+
 class ISAPIClient:
     """Async ISAPI client.
 
@@ -157,6 +184,23 @@ class ISAPIClient:
         self._verify_ssl = verify_ssl
         self._use_https = use_https
         self._timeout = timeout
+        # v0.7.1: validate credentials are UTF-8 encodable BEFORE handing
+        # them to httpx. ``httpx.DigestAuth.__init__`` calls
+        # ``to_bytes(password)`` immediately, which raises a bare
+        # ``UnicodeEncodeError`` for lone surrogates (e.g. a password
+        # mangled by a paste or a corrupted config entry).
+        #
+        # v0.6.8 guarded this with ``_validate_credentials_encoding`` but
+        # the guard was dropped during the v0.6.12 aiohttp→httpx
+        # migration, and the failure moved EARLIER — from request time to
+        # construction time — so every entity for the entry died with an
+        # inscrutable codec traceback in the HA log.
+        #
+        # Raising ISAPIAuthError here is handled by both call sites:
+        #   - config_flow: surfaces as the "invalid_auth" form error
+        #   - coordinator: _make_client() runs inside the refresh try
+        #     block, which converts ISAPIAuthError to UpdateFailed
+        _validate_credentials_encodable(username, password)
         # Two built-in auth classes from httpx. ``DigestAuth`` handles
         # every algorithm variant Hikvision ships (MD5, SHA-256,
         # MD5-sess); ``BasicAuth`` is for the small subset of old
