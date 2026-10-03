@@ -40,3 +40,47 @@ home-assistant.log
 
 # gh CLI runtime (local auth cache, device id, oauth token)
 .local/
+
+# v0.8 local device-probing artifacts — NEVER commit these.
+# They carry real device serials/IPs/credentials-read paths. Test fixtures
+# live under tests/fixtures_v08/ and ARE tracked (sanitized); these
+# repo-root probe outputs are throwaway.
+probe_captures/
+probe_captures_v08/
+probe_devices.local.json
+*.local.json
+probe_*.py
+probe_*.log
+verify_*.py
+analyze_*.py
+# Sanitizing tooling — sanitize_scan.py hard-codes the REAL camera names
+# it looks for, so committing it would re-publish exactly what the
+# sanitizing pass just removed. The real->placeholder mapping table itself
+# lives outside the repo (../sanitize_map.local.json) and holds real
+# serials/MACs; *.local.json below would catch it too.
+sanitize_*.py
+api_push_*.py
+create_release*.py
+wait_and_release.py
+deprecate_*.py
+diagnose_*.py
+check_*.py
+fix_remote_eol.py
+# NOTE on the two lines below: a .gitignore rule has NO effect on a file
+# git already tracks. test_new_endpoints.py is tracked (committed in an
+# earlier release), so its rule here is a no-op kept only as intent —
+# excluding it from a commit needs `git restore --staged`, not this rule.
+# test_isapi_endpoints.ps1 is untracked, so its rule does apply.
+# Neither script contains a plaintext password: both take it via a
+# required --password argument (verified 2026-10-04).
+test_isapi_endpoints.ps1
+test_new_endpoints.py
+# One fixture has a non-ASCII filename (fragile across platform checkouts).
+# It is a byte-identical duplicate of a capture already kept under the
+# ignored probe_captures_v08/, and no test reads it — so exclude it.
+#
+# Do NOT use a negated character class here. Git's glob does not support
+# \x escapes: `*[^\x00-\x7F]*` is parsed as the literal set [^x0-7F],
+# which matches *every* fixture (verified with an untracked probe file)
+# and would silently drop all of tests/fixtures_v08 from a fresh clone.
+tests/fixtures_v08/*Q_scheme*

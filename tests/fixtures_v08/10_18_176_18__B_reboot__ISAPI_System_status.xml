@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<DeviceStatus version="2.0">
+<currentDeviceTime>2026-09-27T08:21:19+08:00</currentDeviceTime>
+<deviceUpTime>317742</deviceUpTime>
+<CPUList>
+<CPU>
+<cpuDescription>ARM926EJ-Sid(wb) [41069265] revision 5 (ARMv5TEJ)</cpuDescription>
+<cpuUtilization>48</cpuUtilization>
+</CPU>
+</CPUList>
+<MemoryList>
+<Memory>
+<memoryDescription>DDR Memory</memoryDescription>
+<memoryUsage>61</memoryUsage>
+<memoryAvailable>224004</memoryAvailable>
+</Memory>
+</MemoryList>
+</DeviceStatus>

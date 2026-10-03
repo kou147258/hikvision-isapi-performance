@@ -1,0 +1,54 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<DeviceInfo version="2.0">
+
+<deviceName>IP CAMERA</deviceName>
+
+<deviceID>49e6c000-7db0-11b2-807a-04eecd64569b</deviceID>
+
+<deviceDescription>IPCamera</deviceDescription>
+
+<deviceLocation>hangzhou</deviceLocation>
+
+<systemContact>Hikvision.China</systemContact>
+
+<model>DS-2DE2Q140MZ-T/GL2</model>
+
+<serialNumber>SN-TEST-019</serialNumber>
+
+<macAddress>02:00:00:00:00:02</macAddress>
+
+<firmwareVersion>V5.8.35</firmwareVersion>
+
+<firmwareReleasedDate>build 260827</firmwareReleasedDate>
+
+<encoderVersion>V7.3</encoderVersion>
+
+<encoderReleasedDate>build 251013</encoderReleasedDate>
+
+<bootVersion>V1.3.4</bootVersion>
+
+<bootReleasedDate>100316</bootReleasedDate>
+
+<hardwareVersion>0x0</hardwareVersion>
+
+<deviceType>IPCamera</deviceType>
+
+<telecontrolID>88</telecontrolID>
+
+<supportBeep>true</supportBeep>
+
+<supportVideoLoss>false</supportVideoLoss>
+
+<firmwareVersionInfo>B-R-E10-0</firmwareVersionInfo>
+
+<manufacturer>hikvision</manufacturer>
+
+<subSerialNumber>SUB-TEST-004</subSerialNumber>
+
+<OEMCode>1</OEMCode>
+
+<bootTime>2026-09-17T11:37:48Z</bootTime>
+
+</DeviceInfo>
+

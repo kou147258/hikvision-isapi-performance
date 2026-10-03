@@ -1,0 +1,1020 @@
+[28672B]
+--boundary
+
+Content-Type: application/xml; charset="UTF-8"
+
+Content-Length: 529
+
+
+
+<EventNotificationAlert version="2.0" xmlns="http://www.isapi.org/ver20/XMLSchema">
+<ipAddress>10.18.176.64</ipAddress>
+<portNo>80</portNo>
+<protocolType>HTTP</protocolType>
+<macAddress>02:00:00:00:00:06</macAddress>
+<dynChannelID>1</dynChannelID>
+<channelID>1</channelID>
+<dateTime>2026-09-27T08:25:13+08:00</dateTime>
+<activePostCount>1</activePostCount>
+<eventType>VMD</eventType>
+<eventState>active</eventState>
+<eventDescription>Motion alarm</eventDescription>
+<channelName>摄像机12</channelName>
+</EventNotificationAlert>
+--boundary
+
+Content-Type: application/xml; charset="UTF-8"
+
+Content-Length: 529
+
+
+
+<EventNotificationAlert version="2.0" xmlns="http://www.isapi.org/ver20/XMLSchema">
+<ipAddress>10.18.176.64</ipAddress>
+<portNo>80</portNo>
+<protocolType>HTTP</protocolType>
+<macAddress>02:00:00:00:00:06</macAddress>
+<dynChannelID>2</dynChannelID>
+<channelID>2</channelID>
+<dateTime>2026-09-27T08:25:13+08:00</dateTime>
+<activePostCount>2</activePostCount>
+<eventType>VMD</eventType>
+<eventState>active</eventState>
+<eventDescription>Motion alarm</eventDescription>
+<channelName>摄像机13</channelName>
+</EventNotificationAlert>
+--boundary
+
+Content-Type: application/xml; charset="UTF-8"
+
+Content-Length: 531
+
+
+
+<EventNotificationAlert version="2.0" xmlns="http://www.isapi.org/ver20/XMLSchema">
+<ipAddress>10.18.176.64</ipAddress>
+<portNo>80</portNo>
+<protocolType>HTTP</protocolType>
+<macAddress>02:00:00:00:00:06</macAddress>
+<dynChannelID>3</dynChannelID>
+<channelID>3</channelID>
+<dateTime>2026-09-27T08:25:13+08:00</dateTime>
+<activePostCount>3</activePostCount>
+<eventType>VMD</eventType>
+<eventState>active</eventState>
+<eventDescription>Motion alarm</eventDescription>
+<channelName>摄像机09</channelName>
+</EventNotificationAlert>
+--boundary
+
+Content-Type: application/xml; charset="UTF-8"
+
+Content-Length: 552
+
+
+
+<EventNotificationAlert version="2.0" xmlns="http://www.isapi.org/ver20/XMLSchema">
+<ipAddress>10.18.176.64</ipAddress>
+<portNo>80</portNo>
+<protocolType>HTTP</protocolType>
+<macAddress>02:00:00:00:00:06</macAddress>
+<dynChannelID>10</dynChannelID>
+<channelID>10</channelID>
+<dateTime>2026-09-27T08:25:13+08:00</dateTime>
+<activePostCount>4</activePostCount>
+<eventType>VMD</eventType>
+<eventState>active</eventState>
+<eventDescription>Motion alarm</eventDescription>
+<channelName>摄像机02</channelName>
+</EventNotificationAlert>
+--boundary
+
+Content-Type: application/xml; charset="UTF-8"
+
+Content-Length: 552
+
+
+
+<EventNotificationAlert version="2.0" xmlns="http://www.isapi.org/ver20/XMLSchema">
+<ipAddress>10.18.176.64</ipAddress>
+<portNo>80</portNo>
+<protocolType>HTTP</protocolType>
+<macAddress>02:00:00:00:00:06</macAddress>
+<dynChannelID>11</dynChannelID>
+<channelID>11</channelID>
+<dateTime>2026-09-27T08:25:13+08:00</dateTime>
+<activePostCount>5</activePostCount>
+<eventType>VMD</eventType>
+<eventState>active</eventState>
+<eventDescription>Motion alarm</eventDescription>
+<channelName>摄像机03</channelName>
+</EventNotificationAlert>
+--boundary
+
+Content-Type: application/xml; charset="UTF-8"
+
+Content-Length: 540
+
+
+
+<EventNotificationAlert version="2.0" xmlns="http://www.isapi.org/ver20/XMLSchema">
+<ipAddress>10.18.176.64</ipAddress>
+<portNo>80</portNo>
+<protocolType>HTTP</protocolType>
+<macAddress>02:00:00:00:00:06</macAddress>
+<dynChannelID>12</dynChannelID>
+<channelID>12</channelID>
+<dateTime>2026-09-27T08:25:13+08:00</dateTime>
+<activePostCount>6</activePostCount>
+<eventType>VMD</eventType>
+<eventState>active</eventState>
+<eventDescription>Motion alarm</eventDescription>
+<channelName>摄像机07</channelName>
+</EventNotificationAlert>
+--boundary
+
+Content-Type: application/xml; charset="UTF-8"
+
+Content-Length: 529
+
+
+
+<EventNotificationAlert version="2.0" xmlns="http://www.isapi.org/ver20/XMLSchema">
+<ipAddress>10.18.176.64</ipAddress>
+<portNo>80</portNo>
+<protocolType>HTTP</protocolType>
+<macAddress>02:00:00:00:00:06</macAddress>
+<dynChannelID>1</dynChannelID>
+<channelID>1</channelID>
+<dateTime>2026-09-27T08:25:14+08:00</dateTime>
+<activePostCount>1</activePostCount>
+<eventType>VMD</eventType>
+<eventState>active</eventState>
+<eventDescription>Motion alarm</eventDescription>
+<channelName>摄像机12</channelName>
+</EventNotificationAlert>
+--boundary
+
+Content-Type: application/xml; charset="UTF-8"
+
+Content-Length: 529
+
+
+
+<EventNotificationAlert version="2.0" xmlns="http://www.isapi.org/ver20/XMLSchema">
+<ipAddress>10.18.176.64</ipAddress>
+<portNo>80</portNo>
+<protocolType>HTTP</protocolType>
+<macAddress>02:00:00:00:00:06</macAddress>
+<dynChannelID>2</dynChannelID>
+<channelID>2</channelID>
+<dateTime>2026-09-27T08:25:14+08:00</dateTime>
+<activePostCount>2</activePostCount>
+<eventType>VMD</eventType>
+<eventState>active</eventState>
+<eventDescription>Motion alarm</eventDescription>
+<channelName>摄像机13</channelName>
+</EventNotificationAlert>
+--boundary
+
+Content-Type: application/xml; charset="UTF-8"
+
+Content-Length: 531
+
+
+
+<EventNotificationAlert version="2.0" xmlns="http://www.isapi.org/ver20/XMLSchema">
+<ipAddress>10.18.176.64</ipAddress>
+<portNo>80</portNo>
+<protocolType>HTTP</protocolType>
+<macAddress>02:00:00:00:00:06</macAddress>
+<dynChannelID>3</dynChannelID>
+<channelID>3</channelID>
+<dateTime>2026-09-27T08:25:14+08:00</dateTime>
+<activePostCount>3</activePostCount>
+<eventType>VMD</eventType>
+<eventState>active</eventState>
+<eventDescription>Motion alarm</eventDescription>
+<channelName>摄像机09</channelName>
+</EventNotificationAlert>
+--boundary
+
+Content-Type: application/xml; charset="UTF-8"
+
+Content-Length: 552
+
+
+
+<EventNotificationAlert version="2.0" xmlns="http://www.isapi.org/ver20/XMLSchema">
+<ipAddress>10.18.176.64</ipAddress>
+<portNo>80</portNo>
+<protocolType>HTTP</protocolType>
+<macAddress>02:00:00:00:00:06</macAddress>
+<dynChannelID>10</dynChannelID>
+<channelID>10</channelID>
+<dateTime>2026-09-27T08:25:14+08:00</dateTime>
+<activePostCount>4</activePostCount>
+<eventType>VMD</eventType>
+<eventState>active</eventState>
+<eventDescription>Motion alarm</eventDescription>
+<channelName>摄像机02</channelName>
+</EventNotificationAlert>
+--boundary
+
+Content-Type: application/xml; charset="UTF-8"
+
+Content-Length: 552
+
+
+
+<EventNotificationAlert version="2.0" xmlns="http://www.isapi.org/ver20/XMLSchema">
+<ipAddress>10.18.176.64</ipAddress>
+<portNo>80</portNo>
+<protocolType>HTTP</protocolType>
+<macAddress>02:00:00:00:00:06</macAddress>
+<dynChannelID>11</dynChannelID>
+<channelID>11</channelID>
+<dateTime>2026-09-27T08:25:14+08:00</dateTime>
+<activePostCount>5</activePostCount>
+<eventType>VMD</eventType>
+<eventState>active</eventState>
+<eventDescription>Motion alarm</eventDescription>
+<channelName>摄像机03</channelName>
+</EventNotificationAlert>
+--boundary
+
+Content-Type: application/xml; charset="UTF-8"
+
+Content-Length: 540
+
+
+
+<EventNotificationAlert version="2.0" xmlns="http://www.isapi.org/ver20/XMLSchema">
+<ipAddress>10.18.176.64</ipAddress>
+<portNo>80</portNo>
+<protocolType>HTTP</protocolType>
+<macAddress>02:00:00:00:00:06</macAddress>
+<dynChannelID>12</dynChannelID>
+<channelID>12</channelID>
+<dateTime>2026-09-27T08:25:14+08:00</dateTime>
+<activePostCount>6</activePostCount>
+<eventType>VMD</eventType>
+<eventState>active</eventState>
+<eventDescription>Motion alarm</eventDescription>
+<channelName>摄像机07</channelName>
+</EventNotificationAlert>
+--boundary
+
+Content-Type: application/xml; charset="UTF-8"
+
+Content-Length: 529
+
+
+
+<EventNotificationAlert version="2.0" xmlns="http://www.isapi.org/ver20/XMLSchema">
+<ipAddress>10.18.176.64</ipAddress>
+<portNo>80</portNo>
+<protocolType>HTTP</protocolType>
+<macAddress>02:00:00:00:00:06</macAddress>
+<dynChannelID>1</dynChannelID>
+<channelID>1</channelID>
+<dateTime>2026-09-27T08:25:15+08:00</dateTime>
+<activePostCount>1</activePostCount>
+<eventType>VMD</eventType>
+<eventState>active</eventState>
+<eventDescription>Motion alarm</eventDescription>
+<channelName>摄像机12</channelName>
+</EventNotificationAlert>
+--boundary
+
+Content-Type: application/xml; charset="UTF-8"
+
+Content-Length: 529
+
+
+
+<EventNotificationAlert version="2.0" xmlns="http://www.isapi.org/ver20/XMLSchema">
+<ipAddress>10.18.176.64</ipAddress>
+<portNo>80</portNo>
+<protocolType>HTTP</protocolType>
+<macAddress>02:00:00:00:00:06</macAddress>
+<dynChannelID>2</dynChannelID>
+<channelID>2</channelID>
+<dateTime>2026-09-27T08:25:15+08:00</dateTime>
+<activePostCount>2</activePostCount>
+<eventType>VMD</eventType>
+<eventState>active</eventState>
+<eventDescription>Motion alarm</eventDescription>
+<channelName>摄像机13</channelName>
+</EventNotificationAlert>
+--boundary
+
+Content-Type: application/xml; charset="UTF-8"
+
+Content-Length: 531
+
+
+
+<EventNotificationAlert version="2.0" xmlns="http://www.isapi.org/ver20/XMLSchema">
+<ipAddress>10.18.176.64</ipAddress>
+<portNo>80</portNo>
+<protocolType>HTTP</protocolType>
+<macAddress>02:00:00:00:00:06</macAddress>
+<dynChannelID>3</dynChannelID>
+<channelID>3</channelID>
+<dateTime>2026-09-27T08:25:15+08:00</dateTime>
+<activePostCount>3</activePostCount>
+<eventType>VMD</eventType>
+<eventState>active</eventState>
+<eventDescription>Motion alarm</eventDescription>
+<channelName>摄像机09</channelName>
+</EventNotificationAlert>
+--boundary
+
+Content-Type: application/xml; charset="UTF-8"
+
+Content-Length: 552
+
+
+
+<EventNotificationAlert version="2.0" xmlns="http://www.isapi.org/ver20/XMLSchema">
+<ipAddress>10.18.176.64</ipAddress>
+<portNo>80</portNo>
+<protocolType>HTTP</protocolType>
+<macAddress>02:00:00:00:00:06</macAddress>
+<dynChannelID>10</dynChannelID>
+<channelID>10</channelID>
+<dateTime>2026-09-27T08:25:15+08:00</dateTime>
+<activePostCount>4</activePostCount>
+<eventType>VMD</eventType>
+<eventState>active</eventState>
+<eventDescription>Motion alarm</eventDescription>
+<channelName>摄像机02</channelName>
+</EventNotificationAlert>
+--boundary
+
+Content-Type: application/xml; charset="UTF-8"
+
+Content-Length: 552
+
+
+
+<EventNotificationAlert version="2.0" xmlns="http://www.isapi.org/ver20/XMLSchema">
+<ipAddress>10.18.176.64</ipAddress>
+<portNo>80</portNo>
+<protocolType>HTTP</protocolType>
+<macAddress>02:00:00:00:00:06</macAddress>
+<dynChannelID>11</dynChannelID>
+<channelID>11</channelID>
+<dateTime>2026-09-27T08:25:15+08:00</dateTime>
+<activePostCount>5</activePostCount>
+<eventType>VMD</eventType>
+<eventState>active</eventState>
+<eventDescription>Motion alarm</eventDescription>
+<channelName>摄像机03</channelName>
+</EventNotificationAlert>
+--boundary
+
+Content-Type: application/xml; charset="UTF-8"
+
+Content-Length: 540
+
+
+
+<EventNotificationAlert version="2.0" xmlns="http://www.isapi.org/ver20/XMLSchema">
+<ipAddress>10.18.176.64</ipAddress>
+<portNo>80</portNo>
+<protocolType>HTTP</protocolType>
+<macAddress>02:00:00:00:00:06</macAddress>
+<dynChannelID>12</dynChannelID>
+<channelID>12</channelID>
+<dateTime>2026-09-27T08:25:15+08:00</dateTime>
+<activePostCount>6</activePostCount>
+<eventType>VMD</eventType>
+<eventState>active</eventState>
+<eventDescription>Motion alarm</eventDescription>
+<channelName>摄像机07</channelName>
+</EventNotificationAlert>
+--boundary
+
+Content-Type: application/xml; charset="UTF-8"
+
+Content-Length: 529
+
+
+
+<EventNotificationAlert version="2.0" xmlns="http://www.isapi.org/ver20/XMLSchema">
+<ipAddress>10.18.176.64</ipAddress>
+<portNo>80</portNo>
+<protocolType>HTTP</protocolType>
+<macAddress>02:00:00:00:00:06</macAddress>
+<dynChannelID>1</dynChannelID>
+<channelID>1</channelID>
+<dateTime>2026-09-27T08:25:16+08:00</dateTime>
+<activePostCount>1</activePostCount>
+<eventType>VMD</eventType>
+<eventState>active</eventState>
+<eventDescription>Motion alarm</eventDescription>
+<channelName>摄像机12</channelName>
+</EventNotificationAlert>
+--boundary
+
+Content-Type: application/xml; charset="UTF-8"
+
+Content-Length: 529
+
+
+
+<EventNotificationAlert version="2.0" xmlns="http://www.isapi.org/ver20/XMLSchema">
+<ipAddress>10.18.176.64</ipAddress>
+<portNo>80</portNo>
+<protocolType>HTTP</protocolType>
+<macAddress>02:00:00:00:00:06</macAddress>
+<dynChannelID>2</dynChannelID>
+<channelID>2</channelID>
+<dateTime>2026-09-27T08:25:16+08:00</dateTime>
+<activePostCount>2</activePostCount>
+<eventType>VMD</eventType>
+<eventState>active</eventState>
+<eventDescription>Motion alarm</eventDescription>
+<channelName>摄像机13</channelName>
+</EventNotificationAlert>
+--boundary
+
+Content-Type: application/xml; charset="UTF-8"
+
+Content-Length: 531
+
+
+
+<EventNotificationAlert version="2.0" xmlns="http://www.isapi.org/ver20/XMLSchema">
+<ipAddress>10.18.176.64</ipAddress>
+<portNo>80</portNo>
+<protocolType>HTTP</protocolType>
+<macAddress>02:00:00:00:00:06</macAddress>
+<dynChannelID>3</dynChannelID>
+<channelID>3</channelID>
+<dateTime>2026-09-27T08:25:16+08:00</dateTime>
+<activePostCount>3</activePostCount>
+<eventType>VMD</eventType>
+<eventState>active</eventState>
+<eventDescription>Motion alarm</eventDescription>
+<channelName>摄像机09</channelName>
+</EventNotificationAlert>
+--boundary
+
+Content-Type: application/xml; charset="UTF-8"
+
+Content-Length: 552
+
+
+
+<EventNotificationAlert version="2.0" xmlns="http://www.isapi.org/ver20/XMLSchema">
+<ipAddress>10.18.176.64</ipAddress>
+<portNo>80</portNo>
+<protocolType>HTTP</protocolType>
+<macAddress>02:00:00:00:00:06</macAddress>
+<dynChannelID>10</dynChannelID>
+<channelID>10</channelID>
+<dateTime>2026-09-27T08:25:16+08:00</dateTime>
+<activePostCount>4</activePostCount>
+<eventType>VMD</eventType>
+<eventState>active</eventState>
+<eventDescription>Motion alarm</eventDescription>
+<channelName>摄像机02</channelName>
+</EventNotificationAlert>
+--boundary
+
+Content-Type: application/xml; charset="UTF-8"
+
+Content-Length: 552
+
+
+
+<EventNotificationAlert version="2.0" xmlns="http://www.isapi.org/ver20/XMLSchema">
+<ipAddress>10.18.176.64</ipAddress>
+<portNo>80</portNo>
+<protocolType>HTTP</protocolType>
+<macAddress>02:00:00:00:00:06</macAddress>
+<dynChannelID>11</dynChannelID>
+<channelID>11</channelID>
+<dateTime>2026-09-27T08:25:16+08:00</dateTime>
+<activePostCount>5</activePostCount>
+<eventType>VMD</eventType>
+<eventState>active</eventState>
+<eventDescription>Motion alarm</eventDescription>
+<channelName>摄像机03</channelName>
+</EventNotificationAlert>
+--boundary
+
+Content-Type: application/xml; charset="UTF-8"
+
+Content-Length: 540
+
+
+
+<EventNotificationAlert version="2.0" xmlns="http://www.isapi.org/ver20/XMLSchema">
+<ipAddress>10.18.176.64</ipAddress>
+<portNo>80</portNo>
+<protocolType>HTTP</protocolType>
+<macAddress>02:00:00:00:00:06</macAddress>
+<dynChannelID>12</dynChannelID>
+<channelID>12</channelID>
+<dateTime>2026-09-27T08:25:16+08:00</dateTime>
+<activePostCount>6</activePostCount>
+<eventType>VMD</eventType>
+<eventState>active</eventState>
+<eventDescription>Motion alarm</eventDescription>
+<channelName>摄像机07</channelName>
+</EventNotificationAlert>
+--boundary
+
+Content-Type: application/xml; charset="UTF-8"
+
+Content-Length: 529
+
+
+
+<EventNotificationAlert version="2.0" xmlns="http://www.isapi.org/ver20/XMLSchema">
+<ipAddress>10.18.176.64</ipAddress>
+<portNo>80</portNo>
+<protocolType>HTTP</protocolType>
+<macAddress>02:00:00:00:00:06</macAddress>
+<dynChannelID>1</dynChannelID>
+<channelID>1</channelID>
+<dateTime>2026-09-27T08:25:17+08:00</dateTime>
+<activePostCount>1</activePostCount>
+<eventType>VMD</eventType>
+<eventState>active</eventState>
+<eventDescription>Motion alarm</eventDescription>
+<channelName>摄像机12</channelName>
+</EventNotificationAlert>
+--boundary
+
+Content-Type: application/xml; charset="UTF-8"
+
+Content-Length: 529
+
+
+
+<EventNotificationAlert version="2.0" xmlns="http://www.isapi.org/ver20/XMLSchema">
+<ipAddress>10.18.176.64</ipAddress>
+<portNo>80</portNo>
+<protocolType>HTTP</protocolType>
+<macAddress>02:00:00:00:00:06</macAddress>
+<dynChannelID>2</dynChannelID>
+<channelID>2</channelID>
+<dateTime>2026-09-27T08:25:17+08:00</dateTime>
+<activePostCount>2</activePostCount>
+<eventType>VMD</eventType>
+<eventState>active</eventState>
+<eventDescription>Motion alarm</eventDescription>
+<channelName>摄像机13</channelName>
+</EventNotificationAlert>
+--boundary
+
+Content-Type: application/xml; charset="UTF-8"
+
+Content-Length: 531
+
+
+
+<EventNotificationAlert version="2.0" xmlns="http://www.isapi.org/ver20/XMLSchema">
+<ipAddress>10.18.176.64</ipAddress>
+<portNo>80</portNo>
+<protocolType>HTTP</protocolType>
+<macAddress>02:00:00:00:00:06</macAddress>
+<dynChannelID>3</dynChannelID>
+<channelID>3</channelID>
+<dateTime>2026-09-27T08:25:17+08:00</dateTime>
+<activePostCount>3</activePostCount>
+<eventType>VMD</eventType>
+<eventState>active</eventState>
+<eventDescription>Motion alarm</eventDescription>
+<channelName>摄像机09</channelName>
+</EventNotificationAlert>
+--boundary
+
+Content-Type: application/xml; charset="UTF-8"
+
+Content-Length: 552
+
+
+
+<EventNotificationAlert version="2.0" xmlns="http://www.isapi.org/ver20/XMLSchema">
+<ipAddress>10.18.176.64</ipAddress>
+<portNo>80</portNo>
+<protocolType>HTTP</protocolType>
+<macAddress>02:00:00:00:00:06</macAddress>
+<dynChannelID>10</dynChannelID>
+<channelID>10</channelID>
+<dateTime>2026-09-27T08:25:17+08:00</dateTime>
+<activePostCount>4</activePostCount>
+<eventType>VMD</eventType>
+<eventState>active</eventState>
+<eventDescription>Motion alarm</eventDescription>
+<channelName>摄像机02</channelName>
+</EventNotificationAlert>
+--boundary
+
+Content-Type: application/xml; charset="UTF-8"
+
+Content-Length: 552
+
+
+
+<EventNotificationAlert version="2.0" xmlns="http://www.isapi.org/ver20/XMLSchema">
+<ipAddress>10.18.176.64</ipAddress>
+<portNo>80</portNo>
+<protocolType>HTTP</protocolType>
+<macAddress>02:00:00:00:00:06</macAddress>
+<dynChannelID>11</dynChannelID>
+<channelID>11</channelID>
+<dateTime>2026-09-27T08:25:17+08:00</dateTime>
+<activePostCount>5</activePostCount>
+<eventType>VMD</eventType>
+<eventState>active</eventState>
+<eventDescription>Motion alarm</eventDescription>
+<channelName>摄像机03</channelName>
+</EventNotificationAlert>
+--boundary
+
+Content-Type: application/xml; charset="UTF-8"
+
+Content-Length: 540
+
+
+
+<EventNotificationAlert version="2.0" xmlns="http://www.isapi.org/ver20/XMLSchema">
+<ipAddress>10.18.176.64</ipAddress>
+<portNo>80</portNo>
+<protocolType>HTTP</protocolType>
+<macAddress>02:00:00:00:00:06</macAddress>
+<dynChannelID>12</dynChannelID>
+<channelID>12</channelID>
+<dateTime>2026-09-27T08:25:17+08:00</dateTime>
+<activePostCount>6</activePostCount>
+<eventType>VMD</eventType>
+<eventState>active</eventState>
+<eventDescription>Motion alarm</eventDescription>
+<channelName>摄像机07</channelName>
+</EventNotificationAlert>
+--boundary
+
+Content-Type: application/xml; charset="UTF-8"
+
+Content-Length: 529
+
+
+
+<EventNotificationAlert version="2.0" xmlns="http://www.isapi.org/ver20/XMLSchema">
+<ipAddress>10.18.176.64</ipAddress>
+<portNo>80</portNo>
+<protocolType>HTTP</protocolType>
+<macAddress>02:00:00:00:00:06</macAddress>
+<dynChannelID>1</dynChannelID>
+<channelID>1</channelID>
+<dateTime>2026-09-27T08:25:18+08:00</dateTime>
+<activePostCount>1</activePostCount>
+<eventType>VMD</eventType>
+<eventState>active</eventState>
+<eventDescription>Motion alarm</eventDescription>
+<channelName>摄像机12</channelName>
+</EventNotificationAlert>
+--boundary
+
+Content-Type: application/xml; charset="UTF-8"
+
+Content-Length: 529
+
+
+
+<EventNotificationAlert version="2.0" xmlns="http://www.isapi.org/ver20/XMLSchema">
+<ipAddress>10.18.176.64</ipAddress>
+<portNo>80</portNo>
+<protocolType>HTTP</protocolType>
+<macAddress>02:00:00:00:00:06</macAddress>
+<dynChannelID>2</dynChannelID>
+<channelID>2</channelID>
+<dateTime>2026-09-27T08:25:18+08:00</dateTime>
+<activePostCount>2</activePostCount>
+<eventType>VMD</eventType>
+<eventState>active</eventState>
+<eventDescription>Motion alarm</eventDescription>
+<channelName>摄像机13</channelName>
+</EventNotificationAlert>
+--boundary
+
+Content-Type: application/xml; charset="UTF-8"
+
+Content-Length: 531
+
+
+
+<EventNotificationAlert version="2.0" xmlns="http://www.isapi.org/ver20/XMLSchema">
+<ipAddress>10.18.176.64</ipAddress>
+<portNo>80</portNo>
+<protocolType>HTTP</protocolType>
+<macAddress>02:00:00:00:00:06</macAddress>
+<dynChannelID>3</dynChannelID>
+<channelID>3</channelID>
+<dateTime>2026-09-27T08:25:18+08:00</dateTime>
+<activePostCount>3</activePostCount>
+<eventType>VMD</eventType>
+<eventState>active</eventState>
+<eventDescription>Motion alarm</eventDescription>
+<channelName>摄像机09</channelName>
+</EventNotificationAlert>
+--boundary
+
+Content-Type: application/xml; charset="UTF-8"
+
+Content-Length: 552
+
+
+
+<EventNotificationAlert version="2.0" xmlns="http://www.isapi.org/ver20/XMLSchema">
+<ipAddress>10.18.176.64</ipAddress>
+<portNo>80</portNo>
+<protocolType>HTTP</protocolType>
+<macAddress>02:00:00:00:00:06</macAddress>
+<dynChannelID>10</dynChannelID>
+<channelID>10</channelID>
+<dateTime>2026-09-27T08:25:18+08:00</dateTime>
+<activePostCount>4</activePostCount>
+<eventType>VMD</eventType>
+<eventState>active</eventState>
+<eventDescription>Motion alarm</eventDescription>
+<channelName>摄像机02</channelName>
+</EventNotificationAlert>
+--boundary
+
+Content-Type: application/xml; charset="UTF-8"
+
+Content-Length: 552
+
+
+
+<EventNotificationAlert version="2.0" xmlns="http://www.isapi.org/ver20/XMLSchema">
+<ipAddress>10.18.176.64</ipAddress>
+<portNo>80</portNo>
+<protocolType>HTTP</protocolType>
+<macAddress>02:00:00:00:00:06</macAddress>
+<dynChannelID>11</dynChannelID>
+<channelID>11</channelID>
+<dateTime>2026-09-27T08:25:18+08:00</dateTime>
+<activePostCount>5</activePostCount>
+<eventType>VMD</eventType>
+<eventState>active</eventState>
+<eventDescription>Motion alarm</eventDescription>
+<channelName>摄像机03</channelName>
+</EventNotificationAlert>
+--boundary
+
+Content-Type: application/xml; charset="UTF-8"
+
+Content-Length: 540
+
+
+
+<EventNotificationAlert version="2.0" xmlns="http://www.isapi.org/ver20/XMLSchema">
+<ipAddress>10.18.176.64</ipAddress>
+<portNo>80</portNo>
+<protocolType>HTTP</protocolType>
+<macAddress>02:00:00:00:00:06</macAddress>
+<dynChannelID>12</dynChannelID>
+<channelID>12</channelID>
+<dateTime>2026-09-27T08:25:18+08:00</dateTime>
+<activePostCount>6</activePostCount>
+<eventType>VMD</eventType>
+<eventState>active</eventState>
+<eventDescription>Motion alarm</eventDescription>
+<channelName>摄像机07</channelName>
+</EventNotificationAlert>
+--boundary
+
+Content-Type: application/xml; charset="UTF-8"
+
+Content-Length: 529
+
+
+
+<EventNotificationAlert version="2.0" xmlns="http://www.isapi.org/ver20/XMLSchema">
+<ipAddress>10.18.176.64</ipAddress>
+<portNo>80</portNo>
+<protocolType>HTTP</protocolType>
+<macAddress>02:00:00:00:00:06</macAddress>
+<dynChannelID>1</dynChannelID>
+<channelID>1</channelID>
+<dateTime>2026-09-27T08:25:19+08:00</dateTime>
+<activePostCount>1</activePostCount>
+<eventType>VMD</eventType>
+<eventState>active</eventState>
+<eventDescription>Motion alarm</eventDescription>
+<channelName>摄像机12</channelName>
+</EventNotificationAlert>
+--boundary
+
+Content-Type: application/xml; charset="UTF-8"
+
+Content-Length: 529
+
+
+
+<EventNotificationAlert version="2.0" xmlns="http://www.isapi.org/ver20/XMLSchema">
+<ipAddress>10.18.176.64</ipAddress>
+<portNo>80</portNo>
+<protocolType>HTTP</protocolType>
+<macAddress>02:00:00:00:00:06</macAddress>
+<dynChannelID>2</dynChannelID>
+<channelID>2</channelID>
+<dateTime>2026-09-27T08:25:19+08:00</dateTime>
+<activePostCount>2</activePostCount>
+<eventType>VMD</eventType>
+<eventState>active</eventState>
+<eventDescription>Motion alarm</eventDescription>
+<channelName>摄像机13</channelName>
+</EventNotificationAlert>
+--boundary
+
+Content-Type: application/xml; charset="UTF-8"
+
+Content-Length: 531
+
+
+
+<EventNotificationAlert version="2.0" xmlns="http://www.isapi.org/ver20/XMLSchema">
+<ipAddress>10.18.176.64</ipAddress>
+<portNo>80</portNo>
+<protocolType>HTTP</protocolType>
+<macAddress>02:00:00:00:00:06</macAddress>
+<dynChannelID>3</dynChannelID>
+<channelID>3</channelID>
+<dateTime>2026-09-27T08:25:19+08:00</dateTime>
+<activePostCount>3</activePostCount>
+<eventType>VMD</eventType>
+<eventState>active</eventState>
+<eventDescription>Motion alarm</eventDescription>
+<channelName>摄像机09</channelName>
+</EventNotificationAlert>
+--boundary
+
+Content-Type: application/xml; charset="UTF-8"
+
+Content-Length: 552
+
+
+
+<EventNotificationAlert version="2.0" xmlns="http://www.isapi.org/ver20/XMLSchema">
+<ipAddress>10.18.176.64</ipAddress>
+<portNo>80</portNo>
+<protocolType>HTTP</protocolType>
+<macAddress>02:00:00:00:00:06</macAddress>
+<dynChannelID>10</dynChannelID>
+<channelID>10</channelID>
+<dateTime>2026-09-27T08:25:19+08:00</dateTime>
+<activePostCount>4</activePostCount>
+<eventType>VMD</eventType>
+<eventState>active</eventState>
+<eventDescription>Motion alarm</eventDescription>
+<channelName>摄像机02</channelName>
+</EventNotificationAlert>
+--boundary
+
+Content-Type: application/xml; charset="UTF-8"
+
+Content-Length: 552
+
+
+
+<EventNotificationAlert version="2.0" xmlns="http://www.isapi.org/ver20/XMLSchema">
+<ipAddress>10.18.176.64</ipAddress>
+<portNo>80</portNo>
+<protocolType>HTTP</protocolType>
+<macAddress>02:00:00:00:00:06</macAddress>
+<dynChannelID>11</dynChannelID>
+<channelID>11</channelID>
+<dateTime>2026-09-27T08:25:19+08:00</dateTime>
+<activePostCount>5</activePostCount>
+<eventType>VMD</eventType>
+<eventState>active</eventState>
+<eventDescription>Motion alarm</eventDescription>
+<channelName>摄像机03</channelName>
+</EventNotificationAlert>
+--boundary
+
+Content-Type: application/xml; charset="UTF-8"
+
+Content-Length: 540
+
+
+
+<EventNotificationAlert version="2.0" xmlns="http://www.isapi.org/ver20/XMLSchema">
+<ipAddress>10.18.176.64</ipAddress>
+<portNo>80</portNo>
+<protocolType>HTTP</protocolType>
+<macAddress>02:00:00:00:00:06</macAddress>
+<dynChannelID>12</dynChannelID>
+<channelID>12</channelID>
+<dateTime>2026-09-27T08:25:19+08:00</dateTime>
+<activePostCount>6</activePostCount>
+<eventType>VMD</eventType>
+<eventState>active</eventState>
+<eventDescription>Motion alarm</eventDescription>
+<channelName>摄像机07</channelName>
+</EventNotificationAlert>
+--boundary
+
+Content-Type: application/xml; charset="UTF-8"
+
+Content-Length: 529
+
+
+
+<EventNotificationAlert version="2.0" xmlns="http://www.isapi.org/ver20/XMLSchema">
+<ipAddress>10.18.176.64</ipAddress>
+<portNo>80</portNo>
+<protocolType>HTTP</protocolType>
+<macAddress>02:00:00:00:00:06</macAddress>
+<dynChannelID>1</dynChannelID>
+<channelID>1</channelID>
+<dateTime>2026-09-27T08:25:21+08:00</dateTime>
+<activePostCount>1</activePostCount>
+<eventType>VMD</eventType>
+<eventState>active</eventState>
+<eventDescription>Motion alarm</eventDescription>
+<channelName>摄像机12</channelName>
+</EventNotificationAlert>
+--boundary
+
+Content-Type: application/xml; charset="UTF-8"
+
+Content-Length: 529
+
+
+
+<EventNotificationAlert version="2.0" xmlns="http://www.isapi.org/ver20/XMLSchema">
+<ipAddress>10.18.176.64</ipAddress>
+<portNo>80</portNo>
+<protocolType>HTTP</protocolType>
+<macAddress>02:00:00:00:00:06</macAddress>
+<dynChannelID>2</dynChannelID>
+<channelID>2</channelID>
+<dateTime>2026-09-27T08:25:21+08:00</dateTime>
+<activePostCount>2</activePostCount>
+<eventType>VMD</eventType>
+<eventState>active</eventState>
+<eventDescription>Motion alarm</eventDescription>
+<channelName>摄像机13</channelName>
+</EventNotificationAlert>
+--boundary
+
+Content-Type: application/xml; charset="UTF-8"
+
+Content-Length: 531
+
+
+
+<EventNotificationAlert version="2.0" xmlns="http://www.isapi.org/ver20/XMLSchema">
+<ipAddress>10.18.176.64</ipAddress>
+<portNo>80</portNo>
+<protocolType>HTTP</protocolType>
+<macAddress>02:00:00:00:00:06</macAddress>
+<dynChannelID>3</dynChannelID>
+<channelID>3</channelID>
+<dateTime>2026-09-27T08:25:21+08:00</dateTime>
+<activePostCount>3</activePostCount>
+<eventType>VMD</eventType>
+<eventState>active</eventState>
+<eventDescription>Motion alarm</eventDescription>
+<channelName>摄像机09</channelName>
+</EventNotificationAlert>
+--boundary
+
+Content-Type: application/xml; charset="UTF-8"
+
+Content-Length: 552
+
+
+
+<EventNotificationAlert version="2.0" xmlns="http://www.isapi.org/ver20/XMLSchema">
+<ipAddress>10.18.176.64</ipAddress>
+<portNo>80</portNo>
+<protocolType>HTTP</protocolType>
+<macAddress>02:00:00:00:00:06</macAddress>
+<dynChannelID>10</dynChannelID>
+<channelID>10</channelID>
+<dateTime>2026-09-27T08:25:21+08:00</dateTime>
+<activePostCount>4</activePostCount>
+<eventType>VMD</eventType>
+<eventState>active</eventState>
+<eventDescription>Motion alarm</eventDescription>
+<channelName>摄像机02</channelName>
+</EventNotificationAlert>
+--boundary
+
+Content-Type: application/xml; charset="UTF-8"
+
+Content-Length: 552
+
+

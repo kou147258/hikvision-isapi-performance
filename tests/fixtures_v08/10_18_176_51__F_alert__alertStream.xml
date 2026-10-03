@@ -1,0 +1,226 @@
+[4096B]
+--boundary
+
+Content-Type: application/xml; charset="UTF-8"
+
+Content-Length: 610
+
+
+
+<?xml version="1.0" encoding="UTF-8"?>
+
+<EventNotificationAlert version="2.0" xmlns="http://www.hikvision.com/ver20/XMLSchema">
+
+<ipAddress>10.18.176.51</ipAddress>
+
+<ipv6Address>::</ipv6Address>
+
+<portNo>80</portNo>
+
+<protocol>HTTP</protocol>
+
+<macAddress>02:00:00:00:00:04</macAddress>
+
+<channelID>1</channelID>
+
+<dateTime>2026-09-27T08:21:56+08:00</dateTime>
+
+<activePostCount>1</activePostCount>
+
+<eventType>videoloss</eventType>
+
+<eventState>inactive</eventState>
+
+<eventDescription>videoloss alarm</eventDescription>
+
+<channelName>摄像机01</channelName>
+
+</EventNotificationAlert>
+
+--boundary
+
+Content-Type: application/xml; charset="UTF-8"
+
+Content-Length: 610
+
+
+
+<?xml version="1.0" encoding="UTF-8"?>
+
+<EventNotificationAlert version="2.0" xmlns="http://www.hikvision.com/ver20/XMLSchema">
+
+<ipAddress>10.18.176.51</ipAddress>
+
+<ipv6Address>::</ipv6Address>
+
+<portNo>80</portNo>
+
+<protocol>HTTP</protocol>
+
+<macAddress>02:00:00:00:00:04</macAddress>
+
+<channelID>1</channelID>
+
+<dateTime>2026-09-27T08:22:06+08:00</dateTime>
+
+<activePostCount>1</activePostCount>
+
+<eventType>videoloss</eventType>
+
+<eventState>inactive</eventState>
+
+<eventDescription>videoloss alarm</eventDescription>
+
+<channelName>摄像机01</channelName>
+
+</EventNotificationAlert>
+
+--boundary
+
+Content-Type: application/xml; charset="UTF-8"
+
+Content-Length: 610
+
+
+
+<?xml version="1.0" encoding="UTF-8"?>
+
+<EventNotificationAlert version="2.0" xmlns="http://www.hikvision.com/ver20/XMLSchema">
+
+<ipAddress>10.18.176.51</ipAddress>
+
+<ipv6Address>::</ipv6Address>
+
+<portNo>80</portNo>
+
+<protocol>HTTP</protocol>
+
+<macAddress>02:00:00:00:00:04</macAddress>
+
+<channelID>1</channelID>
+
+<dateTime>2026-09-27T08:22:16+08:00</dateTime>
+
+<activePostCount>1</activePostCount>
+
+<eventType>videoloss</eventType>
+
+<eventState>inactive</eventState>
+
+<eventDescription>videoloss alarm</eventDescription>
+
+<channelName>摄像机01</channelName>
+
+</EventNotificationAlert>
+
+--boundary
+
+Content-Type: application/xml; charset="UTF-8"
+
+Content-Length: 610
+
+
+
+<?xml version="1.0" encoding="UTF-8"?>
+
+<EventNotificationAlert version="2.0" xmlns="http://www.hikvision.com/ver20/XMLSchema">
+
+<ipAddress>10.18.176.51</ipAddress>
+
+<ipv6Address>::</ipv6Address>
+
+<portNo>80</portNo>
+
+<protocol>HTTP</protocol>
+
+<macAddress>02:00:00:00:00:04</macAddress>
+
+<channelID>1</channelID>
+
+<dateTime>2026-09-27T08:22:26+08:00</dateTime>
+
+<activePostCount>1</activePostCount>
+
+<eventType>videoloss</eventType>
+
+<eventState>inactive</eventState>
+
+<eventDescription>videoloss alarm</eventDescription>
+
+<channelName>摄像机01</channelName>
+
+</EventNotificationAlert>
+
+--boundary
+
+Content-Type: application/xml; charset="UTF-8"
+
+Content-Length: 610
+
+
+
+<?xml version="1.0" encoding="UTF-8"?>
+
+<EventNotificationAlert version="2.0" xmlns="http://www.hikvision.com/ver20/XMLSchema">
+
+<ipAddress>10.18.176.51</ipAddress>
+
+<ipv6Address>::</ipv6Address>
+
+<portNo>80</portNo>
+
+<protocol>HTTP</protocol>
+
+<macAddress>02:00:00:00:00:04</macAddress>
+
+<channelID>1</channelID>
+
+<dateTime>2026-09-27T08:22:37+08:00</dateTime>
+
+<activePostCount>1</activePostCount>
+
+<eventType>videoloss</eventType>
+
+<eventState>inactive</eventState>
+
+<eventDescription>videoloss alarm</eventDescription>
+
+<channelName>摄像机01</channelName>
+
+</EventNotificationAlert>
+
+--boundary
+
+Content-Type: application/xml; charset="UTF-8"
+
+Content-Length: 610
+
+
+
+<?xml version="1.0" encoding="UTF-8"?>
+
+<EventNotificationAlert version="2.0" xmlns="http://www.hikvision.com/ver20/XMLSchema">
+
+<ipAddress>10.18.176.51</ipAddress>
+
+<ipv6Address>::</ipv6Address>
+
+<portNo>80</portNo>
+
+<protocol>HTTP</protocol>
+
+<macAddress>02:00:00:00:00:04</macAddress>
+
+<channelID>1</channelID>
+
+<dateTime>2026-09-27T08:22:47+08:00</dateTime>
+
+<activePostCount>1</activePostCount>
+
+<eventType>videoloss</eventType>
+
+<eventState>inactive</eventState>
+
+<eventDescription>videoloss alarm</eventDescription>
+
+<channelName>摄像机01

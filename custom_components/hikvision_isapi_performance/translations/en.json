@@ -46,6 +46,8 @@
       "cpu_usage": {"name": "CPU Usage"},
       "memory_usage": {"name": "Memory Usage"},
       "uptime": {"name": "Uptime"},
+      "last_boot_time": {"name": "Last Boot Time"},
+      "hdd_error_count": {"name": "HDD Fault Count"},
       "channel_count": {"name": "Channel Count"},
       "capability_video_input_channels": {"name": "Capability: Video Input Channels"},
       "storage_total": {"name": "Storage Total"},

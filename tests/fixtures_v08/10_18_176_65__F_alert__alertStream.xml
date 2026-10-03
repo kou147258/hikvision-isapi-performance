@@ -1,0 +1,153 @@
+[4096B]
+--boundary
+
+Content-Type: application/xml; charset="UTF-8"
+
+Content-Length: 469
+
+
+
+<EventNotificationAlert version="1.0" xmlns="http://www.hikvision.com/ver20/XMLSchema">
+<ipAddress>192.168.10.10</ipAddress>
+<portNo>80</portNo>
+<protocol>HTTP</protocol>
+<macAddress>02:00:00:00:00:0e</macAddress>
+<channelID>0</channelID>
+<dateTime>2004-05-05T22:44:07+08:00</dateTime>
+<activePostCount>0</activePostCount>
+<eventType>videoloss</eventType>
+<eventState>inactive</eventState>
+<eventDescription>videoloss alarm</eventDescription>
+</EventNotificationAlert>
+--boundary
+
+Content-Type: application/xml; charset="UTF-8"
+
+Content-Length: 469
+
+
+
+<EventNotificationAlert version="1.0" xmlns="http://www.hikvision.com/ver20/XMLSchema">
+<ipAddress>192.168.10.10</ipAddress>
+<portNo>80</portNo>
+<protocol>HTTP</protocol>
+<macAddress>02:00:00:00:00:0e</macAddress>
+<channelID>0</channelID>
+<dateTime>2004-05-05T22:44:16+08:00</dateTime>
+<activePostCount>0</activePostCount>
+<eventType>videoloss</eventType>
+<eventState>inactive</eventState>
+<eventDescription>videoloss alarm</eventDescription>
+</EventNotificationAlert>
+--boundary
+
+Content-Type: application/xml; charset="UTF-8"
+
+Content-Length: 469
+
+
+
+<EventNotificationAlert version="1.0" xmlns="http://www.hikvision.com/ver20/XMLSchema">
+<ipAddress>192.168.10.10</ipAddress>
+<portNo>80</portNo>
+<protocol>HTTP</protocol>
+<macAddress>02:00:00:00:00:0e</macAddress>
+<channelID>0</channelID>
+<dateTime>2004-05-05T22:44:26+08:00</dateTime>
+<activePostCount>0</activePostCount>
+<eventType>videoloss</eventType>
+<eventState>inactive</eventState>
+<eventDescription>videoloss alarm</eventDescription>
+</EventNotificationAlert>
+--boundary
+
+Content-Type: application/xml; charset="UTF-8"
+
+Content-Length: 469
+
+
+
+<EventNotificationAlert version="1.0" xmlns="http://www.hikvision.com/ver20/XMLSchema">
+<ipAddress>192.168.10.10</ipAddress>
+<portNo>80</portNo>
+<protocol>HTTP</protocol>
+<macAddress>02:00:00:00:00:0e</macAddress>
+<channelID>0</channelID>
+<dateTime>2004-05-05T22:44:35+08:00</dateTime>
+<activePostCount>0</activePostCount>
+<eventType>videoloss</eventType>
+<eventState>inactive</eventState>
+<eventDescription>videoloss alarm</eventDescription>
+</EventNotificationAlert>
+--boundary
+
+Content-Type: application/xml; charset="UTF-8"
+
+Content-Length: 469
+
+
+
+<EventNotificationAlert version="1.0" xmlns="http://www.hikvision.com/ver20/XMLSchema">
+<ipAddress>192.168.10.10</ipAddress>
+<portNo>80</portNo>
+<protocol>HTTP</protocol>
+<macAddress>02:00:00:00:00:0e</macAddress>
+<channelID>0</channelID>
+<dateTime>2004-05-05T22:44:44+08:00</dateTime>
+<activePostCount>0</activePostCount>
+<eventType>videoloss</eventType>
+<eventState>inactive</eventState>
+<eventDescription>videoloss alarm</eventDescription>
+</EventNotificationAlert>
+--boundary
+
+Content-Type: application/xml; charset="UTF-8"
+
+Content-Length: 469
+
+
+
+<EventNotificationAlert version="1.0" xmlns="http://www.hikvision.com/ver20/XMLSchema">
+<ipAddress>192.168.10.10</ipAddress>
+<portNo>80</portNo>
+<protocol>HTTP</protocol>
+<macAddress>02:00:00:00:00:0e</macAddress>
+<channelID>0</channelID>
+<dateTime>2004-05-05T22:44:54+08:00</dateTime>
+<activePostCount>0</activePostCount>
+<eventType>videoloss</eventType>
+<eventState>inactive</eventState>
+<eventDescription>videoloss alarm</eventDescription>
+</EventNotificationAlert>
+--boundary
+
+Content-Type: application/xml; charset="UTF-8"
+
+Content-Length: 469
+
+
+
+<EventNotificationAlert version="1.0" xmlns="http://www.hikvision.com/ver20/XMLSchema">
+<ipAddress>192.168.10.10</ipAddress>
+<portNo>80</portNo>
+<protocol>HTTP</protocol>
+<macAddress>02:00:00:00:00:0e</macAddress>
+<channelID>0</channelID>
+<dateTime>2004-05-05T22:45:03+08:00</dateTime>
+<activePostCount>0</activePostCount>
+<eventType>videoloss</eventType>
+<eventState>inactive</eventState>
+<eventDescription>videoloss alarm</eventDescription>
+</EventNotificationAlert>
+--boundary
+
+Content-Type: application/xml; charset="UTF-8"
+
+Content-Length: 469
+
+
+
+<EventNotificationAlert version="1.0" xmlns="http://www.hikvision.com/ver20/XMLSchema">
+<ipAddress>192.168.10.10</ipAddress>
+<portNo>80</portNo>
+<pro

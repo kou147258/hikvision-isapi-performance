@@ -1,0 +1,55 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<InputProxyChannelList version="1.0" size="2">
+<InputProxyChannel version="1.0">
+<id>1</id>
+<name>摄像机04</name>
+<sourceInputPortDescriptor>
+<proxyProtocol>HIKVISION</proxyProtocol>
+<addressingFormatType>ipaddress</addressingFormatType>
+<ipAddress>192.168.254.2</ipAddress>
+<managePortNo>8000</managePortNo>
+<srcInputPort>1</srcInputPort>
+<userName>admin</userName>
+<connMode>plugplay</connMode>
+<streamType>auto</streamType>
+<model>DS-2CD3T86FWDV3-I3S</model>
+<serialNumber>SN-TEST-007</serialNumber>
+<firmwareVersion>V5.7.5 build 241103</firmwareVersion>
+<deviceID></deviceID>
+</sourceInputPortDescriptor>
+<certificateValidationEnabled>false</certificateValidationEnabled>
+<defaultAdminPortEnabled>true</defaultAdminPortEnabled>
+<enableAnr>false</enableAnr>
+<enableTiming>true</enableTiming>
+<devIndex>4e97082b-98fb-4a87-9db8-1ad712d71153</devIndex>
+<twoWayAudioChannelIDList>
+<twoWayAudioChannelID>2</twoWayAudioChannelID>
+</twoWayAudioChannelIDList>
+</InputProxyChannel>
+<InputProxyChannel version="1.0">
+<id>2</id>
+<name>摄像机05</name>
+<sourceInputPortDescriptor>
+<proxyProtocol>HIKVISION</proxyProtocol>
+<addressingFormatType>ipaddress</addressingFormatType>
+<ipAddress>192.168.254.5</ipAddress>
+<managePortNo>8000</managePortNo>
+<srcInputPort>1</srcInputPort>
+<userName>admin</userName>
+<connMode>plugplay</connMode>
+<streamType>auto</streamType>
+<model>DS-2CD3T86FWDV3-I3S</model>
+<serialNumber>SN-TEST-006</serialNumber>
+<firmwareVersion>V5.7.5 build 241103</firmwareVersion>
+<deviceID></deviceID>
+</sourceInputPortDescriptor>
+<certificateValidationEnabled>false</certificateValidationEnabled>
+<defaultAdminPortEnabled>true</defaultAdminPortEnabled>
+<enableAnr>false</enableAnr>
+<enableTiming>true</enableTiming>
+<devIndex>071893db-527e-4d50-aea1-906c2387a021</devIndex>
+<twoWayAudioChannelIDList>
+<twoWayAudioChannelID>3</twoWayAudioChannelID>
+</twoWayAudioChannelIDList>
+</InputProxyChannel>
+</InputProxyChannelList>

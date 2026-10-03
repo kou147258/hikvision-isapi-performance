@@ -182,6 +182,8 @@ def test_parse_storage_handles_empty_root():
     assert out == {
         "total_mb": None, "used_mb": None,
         "free_mb": None, "status": "unknown",
+        # v0.8: per-disk detail + fault count are always present.
+        "hdds": [], "hdd_error_count": 0, "status_detail": [],
     }
 
 

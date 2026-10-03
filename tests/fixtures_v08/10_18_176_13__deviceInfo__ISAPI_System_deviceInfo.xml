@@ -1,0 +1,46 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<DeviceInfo version="2.0">
+
+<deviceName>摄像机10</deviceName>
+
+<deviceID>75454000-0829-11b4-8270-bcbac2145594</deviceID>
+
+<deviceDescription>IPCamera</deviceDescription>
+
+<deviceLocation>hangzhou</deviceLocation>
+
+<systemContact>Hikvision.China</systemContact>
+
+<model>DS-FCN8027-VIK</model>
+
+<serialNumber>SN-TEST-012</serialNumber>
+
+<macAddress>02:00:00:00:00:0c</macAddress>
+
+<firmwareVersion>V5.6.1</firmwareVersion>
+
+<firmwareReleasedDate>build 190809</firmwareReleasedDate>
+
+<encoderVersion>V7.3</encoderVersion>
+
+<encoderReleasedDate>build 190731</encoderReleasedDate>
+
+<bootVersion>V1.3.4</bootVersion>
+
+<bootReleasedDate>100316</bootReleasedDate>
+
+<hardwareVersion>0x0</hardwareVersion>
+
+<deviceType>IPCamera</deviceType>
+
+<telecontrolID>88</telecontrolID>
+
+<supportBeep>false</supportBeep>
+
+<supportVideoLoss>false</supportVideoLoss>
+
+<firmwareVersionInfo>B-R-H3-0</firmwareVersionInfo>
+
+</DeviceInfo>
+

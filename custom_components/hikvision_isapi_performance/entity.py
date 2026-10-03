@@ -86,3 +86,31 @@ class HikvisionISAPIEntity(CoordinatorEntity[HikvisionISAPICoordinator]):
         """Re-bind device_info when the coordinator's data refreshes."""
         self._refresh_device_info()
         super()._handle_coordinator_update()
+
+
+def channel_entities_disabled_by_default(
+    coordinator: HikvisionISAPICoordinator, channel_id: Any
+) -> bool:
+    """v0.8: should this channel's entities be registered disabled?
+
+    True when the channel is the same physical camera as another
+    separately-configured entry (probed: 9 of NVR 176.64's 13 channels
+    match 9 standalone IPCs by serial number). Keeping both sides but
+    disabling the NVR-side copy avoids two full entity sets per camera,
+    while still letting the user enable the NVR view — which is the only
+    place that sees all 13 channels' recording state.
+
+    Shared by every per-channel platform (sensor / binary_sensor / switch
+    / camera) so the policy lives in one place. Defensive against a
+    coordinator that has not computed duplicates yet, and against device
+    -level callers passing an empty channel id.
+    """
+    from . import dedup as _dedup
+
+    duplicates = getattr(coordinator, "duplicate_channels", None) or set()
+    if not duplicates:
+        return False
+    cid = "" if channel_id is None else str(channel_id).strip()
+    if not cid:
+        return False
+    return _dedup.should_disable_channel(cid, duplicates)

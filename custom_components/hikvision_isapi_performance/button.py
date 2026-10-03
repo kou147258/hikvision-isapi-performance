@@ -136,8 +136,14 @@ class HikvisionISAPIPTZButton(HikvisionISAPIEntity, ButtonEntity):
     full-featured API).
     """
 
-    _attr_translation_key = "ptz_direction"
-
+    # translation_key is deliberately None. All four direction buttons
+    # share one class, so a single key ("ptz_direction") would make real HA
+    # render 上转/下转/左转/右转 as one identical label — it only looked
+    # fine because the key was never added to any translations file, so HA
+    # fell back to ``_attr_name``. The literal direction name is
+    # authoritative here. (Same defect class as the per-channel binary
+    # sensors fixed in v0.8; the device-level Reboot button keeps its
+    # translation_key because it is a single instance.)
     def __init__(
         self,
         coordinator: HikvisionISAPICoordinator,

@@ -1,0 +1,66 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<DeviceInfo version="2.0">
+
+<deviceName>摄像机12</deviceName>
+
+<deviceID>5121c000-6fb7-11b3-81ae-08cc81fef7d8</deviceID>
+
+<deviceDescription>IPDome</deviceDescription>
+
+<deviceLocation>hangzhou</deviceLocation>
+
+<systemContact>Hikvision.China</systemContact>
+
+<model>DS-2DF8C832MX-ZDK</model>
+
+<serialNumber>SN-TEST-008</serialNumber>
+
+<macAddress>02:00:00:00:00:05</macAddress>
+
+<firmwareVersion>V5.10.0</firmwareVersion>
+
+<firmwareReleasedDate>build 260519</firmwareReleasedDate>
+
+<encoderVersion>V7.3</encoderVersion>
+
+<encoderReleasedDate>build 260408</encoderReleasedDate>
+
+<bootVersion>V1.3.4</bootVersion>
+
+<bootReleasedDate>100316</bootReleasedDate>
+
+<hardwareVersion>0x0</hardwareVersion>
+
+<deviceType>IPDome</deviceType>
+
+<telecontrolID>88</telecontrolID>
+
+<supportBeep>true</supportBeep>
+
+<supportVideoLoss>false</supportVideoLoss>
+
+<firmwareVersionInfo>B-R-H11-0</firmwareVersionInfo>
+
+<manufacturer>hikvision</manufacturer>
+
+<subSerialNumber>SUB-TEST-001</subSerialNumber>
+
+<OEMCode>1</OEMCode>
+
+<firmware>opdevsdk mediaDrv:v2.0.0</firmware>
+
+<platformName>H11</platformName>
+
+<OSCoreVersionInfo>
+
+<minisysVersion>1.17.10</minisysVersion>
+
+<networkServiceVersion>1.0.0</networkServiceVersion>
+
+</OSCoreVersionInfo>
+
+<isSupportPipeID>true</isSupportPipeID>
+
+</DeviceInfo>
+

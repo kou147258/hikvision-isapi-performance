@@ -1,0 +1,44 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<DeviceInfo version="2.0">
+
+<deviceName>摄像机06</deviceName>
+
+<deviceID>6f519f47-f93b-11b3-825d-c42f907c6160</deviceID>
+
+<deviceDescription>IPZoom</deviceDescription>
+
+<deviceLocation>hangzhou</deviceLocation>
+
+<systemContact>Hikvision.China</systemContact>
+
+<model>DS-FB2127</model>
+
+<serialNumber>SN-TEST-011</serialNumber>
+
+<macAddress>02:00:00:00:00:0d</macAddress>
+
+<firmwareVersion>V5.2.2</firmwareVersion>
+
+<firmwareReleasedDate>build 150518</firmwareReleasedDate>
+
+<encoderVersion>V6.0</encoderVersion>
+
+<encoderReleasedDate>build 150410</encoderReleasedDate>
+
+<bootVersion>V1.3.4</bootVersion>
+
+<bootReleasedDate>100316</bootReleasedDate>
+
+<hardwareVersion>0x0</hardwareVersion>
+
+<deviceType>IPZoom</deviceType>
+
+<telecontrolID>88</telecontrolID>
+
+<supportBeep>false</supportBeep>
+
+<supportVideoLoss>false</supportVideoLoss>
+
+</DeviceInfo>
+

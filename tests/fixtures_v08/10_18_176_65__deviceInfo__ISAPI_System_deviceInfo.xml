@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<DeviceInfo version="1.0">
+<deviceName>录像机02</deviceName>
+<deviceID>48433939-3532-3731-3730-f84dfcf71510</deviceID>
+<model>DS-7708N-I4</model>
+<serialNumber>SN-TEST-009</serialNumber>
+<macAddress>02:00:00:00:00:0e</macAddress>
+<firmwareVersion>V4.1.18</firmwareVersion>
+<firmwareReleasedDate>build 240522</firmwareReleasedDate>
+<encoderVersion>V5.0</encoderVersion>
+<encoderReleasedDate>build 200109</encoderReleasedDate>
+<deviceType>DVR</deviceType>
+<telecontrolID>255</telecontrolID>
+<customizedInfo> </customizedInfo>
+</DeviceInfo>

@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<hddList version="1.0" size="8" >
+<hdd version="2.0">
+<id>1</id>
+<hddName>hdde</hddName>
+<hddPath></hddPath>
+<hddType>SATA</hddType>
+<status>ok</status>
+<capacity>119290</capacity>
+<freeSpace>5888</freeSpace>
+<property>RW</property>
+</hdd>
+</hddList>

@@ -1,0 +1,194 @@
+[4096B]
+--boundary
+
+Content-Type: application/xml; charset="UTF-8"
+
+Content-Length: 836
+
+
+
+<EventNotificationAlert version="2.0" xmlns="http://www.hikvision.com/ver20/XMLSchema">
+
+<ipAddress>10.18.176.13</ipAddress>
+
+<portNo>80</portNo>
+
+<protocol>HTTP</protocol>
+
+<macAddress>02:00:00:00:00:0c</macAddress>
+
+<channelID>1</channelID>
+
+<dateTime>2026-09-27T08:17:45+08:00</dateTime>
+
+<activePostCount>0</activePostCount>
+
+<eventType>videoloss</eventType>
+
+<eventState>inactive</eventState>
+
+<eventDescription>videoloss alarm</eventDescription>
+
+<channelName></channelName>
+
+<Extensions version="1.0" xmlns="urn:psialliance-org">
+
+<serialNumber xmlns="urn:selfextension:psiaext-ver10-xsd">SN-TEST-012</serialNumber>
+
+<eventPush xmlns="urn:selfextension:psiaext-ver10-xsd">IO&amp;&amp;SN-TEST-012,2026-09-27T08:17:45+08:00,1.0</eventPush>
+
+</Extensions>
+
+</EventNotificationAlert>
+
+--boundary
+
+Content-Type: application/xml; charset="UTF-8"
+
+Content-Length: 836
+
+
+
+<EventNotificationAlert version="2.0" xmlns="http://www.hikvision.com/ver20/XMLSchema">
+
+<ipAddress>10.18.176.13</ipAddress>
+
+<portNo>80</portNo>
+
+<protocol>HTTP</protocol>
+
+<macAddress>02:00:00:00:00:0c</macAddress>
+
+<channelID>1</channelID>
+
+<dateTime>2026-09-27T08:17:55+08:00</dateTime>
+
+<activePostCount>0</activePostCount>
+
+<eventType>videoloss</eventType>
+
+<eventState>inactive</eventState>
+
+<eventDescription>videoloss alarm</eventDescription>
+
+<channelName></channelName>
+
+<Extensions version="1.0" xmlns="urn:psialliance-org">
+
+<serialNumber xmlns="urn:selfextension:psiaext-ver10-xsd">SN-TEST-012</serialNumber>
+
+<eventPush xmlns="urn:selfextension:psiaext-ver10-xsd">IO&amp;&amp;SN-TEST-012,2026-09-27T08:17:55+08:00,1.0</eventPush>
+
+</Extensions>
+
+</EventNotificationAlert>
+
+--boundary
+
+Content-Type: application/xml; charset="UTF-8"
+
+Content-Length: 836
+
+
+
+<EventNotificationAlert version="2.0" xmlns="http://www.hikvision.com/ver20/XMLSchema">
+
+<ipAddress>10.18.176.13</ipAddress>
+
+<portNo>80</portNo>
+
+<protocol>HTTP</protocol>
+
+<macAddress>02:00:00:00:00:0c</macAddress>
+
+<channelID>1</channelID>
+
+<dateTime>2026-09-27T08:18:06+08:00</dateTime>
+
+<activePostCount>0</activePostCount>
+
+<eventType>videoloss</eventType>
+
+<eventState>inactive</eventState>
+
+<eventDescription>videoloss alarm</eventDescription>
+
+<channelName></channelName>
+
+<Extensions version="1.0" xmlns="urn:psialliance-org">
+
+<serialNumber xmlns="urn:selfextension:psiaext-ver10-xsd">SN-TEST-012</serialNumber>
+
+<eventPush xmlns="urn:selfextension:psiaext-ver10-xsd">IO&amp;&amp;SN-TEST-012,2026-09-27T08:18:06+08:00,1.0</eventPush>
+
+</Extensions>
+
+</EventNotificationAlert>
+
+--boundary
+
+Content-Type: application/xml; charset="UTF-8"
+
+Content-Length: 836
+
+
+
+<EventNotificationAlert version="2.0" xmlns="http://www.hikvision.com/ver20/XMLSchema">
+
+<ipAddress>10.18.176.13</ipAddress>
+
+<portNo>80</portNo>
+
+<protocol>HTTP</protocol>
+
+<macAddress>02:00:00:00:00:0c</macAddress>
+
+<channelID>1</channelID>
+
+<dateTime>2026-09-27T08:18:16+08:00</dateTime>
+
+<activePostCount>0</activePostCount>
+
+<eventType>videoloss</eventType>
+
+<eventState>inactive</eventState>
+
+<eventDescription>videoloss alarm</eventDescription>
+
+<channelName></channelName>
+
+<Extensions version="1.0" xmlns="urn:psialliance-org">
+
+<serialNumber xmlns="urn:selfextension:psiaext-ver10-xsd">SN-TEST-012</serialNumber>
+
+<eventPush xmlns="urn:selfextension:psiaext-ver10-xsd">IO&amp;&amp;SN-TEST-012,2026-09-27T08:18:16+08:00,1.0</eventPush>
+
+</Extensions>
+
+</EventNotificationAlert>
+
+--boundary
+
+Content-Type: application/xml; charset="UTF-8"
+
+Content-Length: 836
+
+
+
+<EventNotificationAlert version="2.0" xmlns="http://www.hikvision.com/ver20/XMLSchema">
+
+<ipAddress>10.18.176.13</ipAddress>
+
+<portNo>80</portNo>
+
+<protocol>HTTP</protocol>
+
+<macAddress>02:00:00:00:00:0c</macAddress>
+
+<channelID>1</channelID>
+
+<dateTime>2026-09-27T08:18:27+08:00</dateTime>
+
+<activePostCount>0</activePostCount>
+
+<eventT

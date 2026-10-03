@@ -1,0 +1,365 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<EventTriggerList version="1.0">
+<EventTrigger version="2.0">
+<id>IO-1</id>
+<eventType>IO</eventType>
+<inputIOPortID>1</inputIOPortID>
+<EventTriggerNotificationList version="2.0">
+</EventTriggerNotificationList>
+</EventTrigger>
+<EventTrigger version="2.0">
+<id>IO-2</id>
+<eventType>IO</eventType>
+<inputIOPortID>2</inputIOPortID>
+<EventTriggerNotificationList version="2.0">
+</EventTriggerNotificationList>
+</EventTrigger>
+<EventTrigger version="2.0">
+<id>IO-3</id>
+<eventType>IO</eventType>
+<inputIOPortID>3</inputIOPortID>
+<EventTriggerNotificationList version="2.0">
+</EventTriggerNotificationList>
+</EventTrigger>
+<EventTrigger version="2.0">
+<id>IO-4</id>
+<eventType>IO</eventType>
+<inputIOPortID>4</inputIOPortID>
+<EventTriggerNotificationList version="2.0">
+</EventTriggerNotificationList>
+</EventTrigger>
+<EventTrigger version="2.0">
+<id>IO-101</id>
+<eventType>IO</eventType>
+<dynInputIOPortID>101</dynInputIOPortID>
+<EventTriggerNotificationList version="2.0">
+<EventTriggerNotification>
+<id>record-1</id>
+<notificationMethod>record</notificationMethod>
+<dynVideoInputID>1</dynVideoInputID>
+</EventTriggerNotification>
+</EventTriggerNotificationList>
+</EventTrigger>
+<EventTrigger version="2.0">
+<id>IO-201</id>
+<eventType>IO</eventType>
+<dynInputIOPortID>201</dynInputIOPortID>
+<EventTriggerNotificationList version="2.0">
+<EventTriggerNotification>
+<id>record-2</id>
+<notificationMethod>record</notificationMethod>
+<dynVideoInputID>2</dynVideoInputID>
+</EventTriggerNotification>
+</EventTriggerNotificationList>
+</EventTrigger>
+<EventTrigger version="2.0">
+<id>VMD-1</id>
+<eventType>VMD</eventType>
+<dynVideoInputChannelID>1</dynVideoInputChannelID>
+<EventTriggerNotificationList version="2.0">
+<EventTriggerNotification>
+<id>record-1</id>
+<notificationMethod>record</notificationMethod>
+<dynVideoInputID>1</dynVideoInputID>
+</EventTriggerNotification>
+<EventTriggerNotification>
+<id>center</id>
+<notificationMethod>center</notificationMethod>
+</EventTriggerNotification>
+</EventTriggerNotificationList>
+</EventTrigger>
+<EventTrigger version="2.0">
+<id>VMD-2</id>
+<eventType>VMD</eventType>
+<dynVideoInputChannelID>2</dynVideoInputChannelID>
+<EventTriggerNotificationList version="2.0">
+<EventTriggerNotification>
+<id>record-2</id>
+<notificationMethod>record</notificationMethod>
+<dynVideoInputID>2</dynVideoInputID>
+</EventTriggerNotification>
+</EventTriggerNotificationList>
+</EventTrigger>
+<EventTrigger version="2.0">
+<id>tamper-1</id>
+<eventType>tamperdetection</eventType>
+<dynVideoInputChannelID>1</dynVideoInputChannelID>
+<EventTriggerNotificationList version="2.0">
+<EventTriggerNotification>
+<id>center</id>
+<notificationMethod>center</notificationMethod>
+</EventTriggerNotification>
+</EventTriggerNotificationList>
+</EventTrigger>
+<EventTrigger version="2.0">
+<id>tamper-2</id>
+<eventType>tamperdetection</eventType>
+<dynVideoInputChannelID>2</dynVideoInputChannelID>
+<EventTriggerNotificationList version="2.0">
+</EventTriggerNotificationList>
+</EventTrigger>
+<EventTrigger version="2.0">
+<id>videoloss-1</id>
+<eventType>videoloss</eventType>
+<dynVideoInputChannelID>1</dynVideoInputChannelID>
+<EventTriggerNotificationList version="2.0">
+<EventTriggerNotification>
+<id>center</id>
+<notificationMethod>center</notificationMethod>
+</EventTriggerNotification>
+</EventTriggerNotificationList>
+</EventTrigger>
+<EventTrigger version="2.0">
+<id>videoloss-2</id>
+<eventType>videoloss</eventType>
+<dynVideoInputChannelID>2</dynVideoInputChannelID>
+<EventTriggerNotificationList version="2.0">
+</EventTriggerNotificationList>
+</EventTrigger>
+<EventTrigger version="2.0">
+<id>fielddetection-1</id>
+<eventType>fielddetection</eventType>
+<dynVideoInputChannelID>1</dynVideoInputChannelID>
+<EventTriggerNotificationList version="2.0">
+<EventTriggerNotification>
+<id>record-1</id>
+<notificationMethod>record</notificationMethod>
+<dynVideoInputID>1</dynVideoInputID>
+</EventTriggerNotification>
+</EventTriggerNotificationList>
+</EventTrigger>
+<EventTrigger version="2.0">
+<id>fielddetection-2</id>
+<eventType>fielddetection</eventType>
+<dynVideoInputChannelID>2</dynVideoInputChannelID>
+<EventTriggerNotificationList version="2.0">
+<EventTriggerNotification>
+<id>record-2</id>
+<notificationMethod>record</notificationMethod>
+<dynVideoInputID>2</dynVideoInputID>
+</EventTriggerNotification>
+</EventTriggerNotificationList>
+</EventTrigger>
+<EventTrigger version="2.0">
+<id>linedetection-1</id>
+<eventType>linedetection</eventType>
+<dynVideoInputChannelID>1</dynVideoInputChannelID>
+<EventTriggerNotificationList version="2.0">
+<EventTriggerNotification>
+<id>record-1</id>
+<notificationMethod>record</notificationMethod>
+<dynVideoInputID>1</dynVideoInputID>
+</EventTriggerNotification>
+</EventTriggerNotificationList>
+</EventTrigger>
+<EventTrigger version="2.0">
+<id>linedetection-2</id>
+<eventType>linedetection</eventType>
+<dynVideoInputChannelID>2</dynVideoInputChannelID>
+<EventTriggerNotificationList version="2.0">
+<EventTriggerNotification>
+<id>record-2</id>
+<notificationMethod>record</notificationMethod>
+<dynVideoInputID>2</dynVideoInputID>
+</EventTriggerNotification>
+</EventTriggerNotificationList>
+</EventTrigger>
+<EventTrigger version="2.0">
+<id>regionEntrance-1</id>
+<eventType>regionEntrance</eventType>
+<dynVideoInputChannelID>1</dynVideoInputChannelID>
+<EventTriggerNotificationList version="2.0">
+<EventTriggerNotification>
+<id>record-1</id>
+<notificationMethod>record</notificationMethod>
+<dynVideoInputID>1</dynVideoInputID>
+</EventTriggerNotification>
+</EventTriggerNotificationList>
+</EventTrigger>
+<EventTrigger version="2.0">
+<id>regionEntrance-2</id>
+<eventType>regionEntrance</eventType>
+<dynVideoInputChannelID>2</dynVideoInputChannelID>
+<EventTriggerNotificationList version="2.0">
+<EventTriggerNotification>
+<id>record-2</id>
+<notificationMethod>record</notificationMethod>
+<dynVideoInputID>2</dynVideoInputID>
+</EventTriggerNotification>
+</EventTriggerNotificationList>
+</EventTrigger>
+<EventTrigger version="2.0">
+<id>regionExiting-1</id>
+<eventType>regionExiting</eventType>
+<dynVideoInputChannelID>1</dynVideoInputChannelID>
+<EventTriggerNotificationList version="2.0">
+<EventTriggerNotification>
+<id>record-1</id>
+<notificationMethod>record</notificationMethod>
+<dynVideoInputID>1</dynVideoInputID>
+</EventTriggerNotification>
+</EventTriggerNotificationList>
+</EventTrigger>
+<EventTrigger version="2.0">
+<id>regionExiting-2</id>
+<eventType>regionExiting</eventType>
+<dynVideoInputChannelID>2</dynVideoInputChannelID>
+<EventTriggerNotificationList version="2.0">
+<EventTriggerNotification>
+<id>record-2</id>
+<notificationMethod>record</notificationMethod>
+<dynVideoInputID>2</dynVideoInputID>
+</EventTriggerNotification>
+</EventTriggerNotificationList>
+</EventTrigger>
+<EventTrigger version="2.0">
+<id>personDensityDetection</id>
+<eventType>personDensityDetection</eventType>
+<dynVideoInputChannelID>1</dynVideoInputChannelID>
+<EventTriggerNotificationList version="2.0">
+<EventTriggerNotification>
+<id>record-1</id>
+<notificationMethod>record</notificationMethod>
+<dynVideoInputID>1</dynVideoInputID>
+</EventTriggerNotification>
+</EventTriggerNotificationList>
+</EventTrigger>
+<EventTrigger version="2.0">
+<id>personDensityDetection</id>
+<eventType>personDensityDetection</eventType>
+<dynVideoInputChannelID>2</dynVideoInputChannelID>
+<EventTriggerNotificationList version="2.0">
+<EventTriggerNotification>
+<id>record-2</id>
+<notificationMethod>record</notificationMethod>
+<dynVideoInputID>2</dynVideoInputID>
+</EventTriggerNotification>
+</EventTriggerNotificationList>
+</EventTrigger>
+<EventTrigger version="2.0">
+<id>objectsThrownDetection</id>
+<eventType>objectsThrownDetection</eventType>
+<dynVideoInputChannelID>1</dynVideoInputChannelID>
+<EventTriggerNotificationList version="2.0">
+<EventTriggerNotification>
+<id>record-1</id>
+<notificationMethod>record</notificationMethod>
+<dynVideoInputID>1</dynVideoInputID>
+</EventTriggerNotification>
+</EventTriggerNotificationList>
+</EventTrigger>
+<EventTrigger version="2.0">
+<id>objectsThrownDetection</id>
+<eventType>objectsThrownDetection</eventType>
+<dynVideoInputChannelID>2</dynVideoInputChannelID>
+<EventTriggerNotificationList version="2.0">
+<EventTriggerNotification>
+<id>record-2</id>
+<notificationMethod>record</notificationMethod>
+<dynVideoInputID>2</dynVideoInputID>
+</EventTriggerNotification>
+</EventTriggerNotificationList>
+</EventTrigger>
+<EventTrigger version="2.0">
+<id>channelOccupy</id>
+<eventType>channelOccupy</eventType>
+<dynVideoInputChannelID>1</dynVideoInputChannelID>
+<EventTriggerNotificationList version="2.0">
+<EventTriggerNotification>
+<id>record-1</id>
+<notificationMethod>record</notificationMethod>
+<dynVideoInputID>1</dynVideoInputID>
+</EventTriggerNotification>
+</EventTriggerNotificationList>
+</EventTrigger>
+<EventTrigger version="2.0">
+<id>channelOccupy</id>
+<eventType>channelOccupy</eventType>
+<dynVideoInputChannelID>2</dynVideoInputChannelID>
+<EventTriggerNotificationList version="2.0">
+<EventTriggerNotification>
+<id>record-2</id>
+<notificationMethod>record</notificationMethod>
+<dynVideoInputID>2</dynVideoInputID>
+</EventTriggerNotification>
+</EventTriggerNotificationList>
+</EventTrigger>
+<EventTrigger version="2.0">
+<id>ChannelPassingEvent</id>
+<eventType>ChannelPassingEvent</eventType>
+<dynVideoInputChannelID>1</dynVideoInputChannelID>
+<EventTriggerNotificationList version="2.0">
+<EventTriggerNotification>
+<id>record-1</id>
+<notificationMethod>record</notificationMethod>
+<dynVideoInputID>1</dynVideoInputID>
+</EventTriggerNotification>
+</EventTriggerNotificationList>
+</EventTrigger>
+<EventTrigger version="2.0">
+<id>ChannelPassingEvent</id>
+<eventType>ChannelPassingEvent</eventType>
+<dynVideoInputChannelID>2</dynVideoInputChannelID>
+<EventTriggerNotificationList version="2.0">
+<EventTriggerNotification>
+<id>record-2</id>
+<notificationMethod>record</notificationMethod>
+<dynVideoInputID>2</dynVideoInputID>
+</EventTriggerNotification>
+</EventTriggerNotificationList>
+</EventTrigger>
+<EventTrigger version="2.0">
+<id>diskfull</id>
+<eventType>diskfull</eventType>
+<EventTriggerNotificationList version="2.0">
+</EventTriggerNotificationList>
+</EventTrigger>
+<EventTrigger version="2.0">
+<id>diskerror</id>
+<eventType>diskerror</eventType>
+<EventTriggerNotificationList version="2.0">
+<EventTriggerNotification>
+<id>beep</id>
+<notificationMethod>beep</notificationMethod>
+</EventTriggerNotification>
+</EventTriggerNotificationList>
+</EventTrigger>
+<EventTrigger version="2.0">
+<id>nicbroken</id>
+<eventType>nicbroken</eventType>
+<EventTriggerNotificationList version="2.0">
+</EventTriggerNotificationList>
+</EventTrigger>
+<EventTrigger version="2.0">
+<id>ipconflict</id>
+<eventType>ipconflict</eventType>
+<EventTriggerNotificationList version="2.0">
+<EventTriggerNotification>
+<id>beep</id>
+<notificationMethod>beep</notificationMethod>
+</EventTriggerNotification>
+</EventTriggerNotificationList>
+</EventTrigger>
+<EventTrigger version="2.0">
+<id>illaccess</id>
+<eventType>illaccess</eventType>
+<EventTriggerNotificationList version="2.0">
+</EventTriggerNotificationList>
+</EventTrigger>
+<EventTrigger version="2.0">
+<id>recordingfailure</id>
+<eventType>recordingfailure</eventType>
+<EventTriggerNotificationList version="2.0">
+<EventTriggerNotification>
+<id>beep</id>
+<notificationMethod>beep</notificationMethod>
+</EventTriggerNotification>
+</EventTriggerNotificationList>
+</EventTrigger>
+<EventTrigger version="2.0">
+<id></id>
+<eventType></eventType>
+<EventTriggerNotificationList version="2.0">
+</EventTriggerNotificationList>
+</EventTrigger>
+</EventTriggerList>

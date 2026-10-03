@@ -211,6 +211,11 @@ class ISAPIClient:
         # offer digest, we switch to Basic and never switch back.
         self._auth = self._digest_auth
         self._client: httpx.AsyncClient | None = None
+        # v0.8: read timeout for long-lived streaming responses
+        # (alertStream). Deliberately NOT infinite: a silently-dead TCP
+        # connection would otherwise hang the reader forever. The reader
+        # reconnects on timeout, so a finite value is strictly better.
+        self._stream_read_timeout = 120.0
         scheme = "https" if use_https else "http"
         self._base_url = f"{scheme}://{host}:{port}"
 
@@ -218,15 +223,31 @@ class ISAPIClient:
         # ``verify=False`` accepts self-signed certs; the alternative
         # is to add a CA bundle path but that's per-deployment
         # configuration we don't have access to.
-        self._client = httpx.AsyncClient(
-            timeout=self._timeout,
-            verify=self._verify_ssl,
-            follow_redirects=True,
-        )
+        self.open()
         _LOGGER.debug(
             "ISAPIClient opened: %s (use_https=%s, verify_ssl=%s)",
             self._base_url, self._use_https, self._verify_ssl,
         )
+        return self
+
+    def open(self) -> "ISAPIClient":
+        """Open the underlying httpx client (idempotent).
+
+        Public and synchronous because ``httpx.AsyncClient(...)`` is a
+        non-blocking constructor — only ``.request()`` is async. v0.8:
+        the alertStream reader needs a long-lived client created from a
+        sync factory, and must not reach into ``_client`` / ``_timeout``
+        privates to get one.
+
+        ``verify=False`` accepts self-signed certs; a CA bundle path would
+        be per-deployment configuration we don't have access to.
+        """
+        if self._client is None:
+            self._client = httpx.AsyncClient(
+                timeout=self._timeout,
+                verify=self._verify_ssl,
+                follow_redirects=True,
+            )
         return self
 
     async def __aexit__(self, exc_type, exc, tb) -> None:
@@ -415,3 +436,107 @@ class ISAPIClient:
             return ET.fromstring(text)
         except ET.ParseError as exc:
             raise ISAPIError(f"invalid XML from {path}: {exc}") from exc
+
+    async def post_text(self, path: str, body: str) -> str:
+        """POST ``body`` (XML) to ``path`` and return the response text.
+
+        v0.8: needed by ``POST /ISAPI/ContentMgmt/search`` — the only
+        endpoint on the fleet that reports real per-channel recording
+        activity (``Recording/channels/*/status`` is 403/404 on all 12
+        devices). Mirrors ``put_text``: same Content-Type, same auth
+        fallback and error mapping, so a 403 (176.51/52/53) surfaces as
+        ``ISAPIAuthError`` and a 400 "Invalid track id" as ``ISAPIError``
+        for the caller to degrade gracefully.
+        """
+        return await self._request(
+            "POST",
+            path,
+            content=body.encode("utf-8"),
+            headers={"Content-Type": "application/xml; charset=UTF-8"},
+        )
+
+    async def post_xml(self, path: str, body: str) -> ET.Element:
+        """POST ``body`` (XML) to ``path`` and parse the response.
+
+        Namespace-stripped like ``get_xml`` / ``put_xml``: Hikvision's
+        ``CMSearchResult`` carries a default namespace, and the
+        ``capabilities`` parser needs plain tag names to match.
+        """
+        text = await self.post_text(path, body)
+        text = _strip_xmlns(text)
+        try:
+            return ET.fromstring(text)
+        except ET.ParseError as exc:
+            raise ISAPIError(f"invalid XML from {path}: {exc}") from exc
+
+    async def stream_bytes(self, path: str, chunk_size: int = 8192):
+        """Open a long-lived GET and yield response chunks as bytes.
+
+        v0.8: used by alertStream. This is an async generator, so the
+        caller drives it and must handle cancellation.
+
+        Auth handling mirrors ``_request`` but cannot reuse it: a stream
+        response body is never fully read, so the digest→basic probe has
+        to be done on the response headers before any chunk is consumed.
+        176.18 (DS-FB2127) only accepts Basic and would otherwise fail
+        here even though the rest of the integration works for it.
+        """
+        if self._client is None:
+            raise ISAPIConnectionError("Client not opened")
+        url = f"{self._base_url}{path}"
+        timeout = httpx.Timeout(
+            self._timeout, read=self._stream_read_timeout
+        )
+
+        stream_ctx = self._client.stream(
+            "GET", url, auth=self._auth, timeout=timeout
+        )
+        resp = await stream_ctx.__aenter__()
+
+        if (
+            resp.status_code == 401
+            and self._auth is not self._basic_auth
+        ):
+            await stream_ctx.__aexit__(None, None, None)
+            challenge = _extract_challenge_lower(resp.headers)
+            if "digest" in challenge:
+                raise ISAPIAuthError(
+                    f"HTTP 401 on {url} (digest offered; bad credentials)",
+                    status_code=401,
+                )
+            _LOGGER.info(
+                "%s: alertStream 401 with non-digest challenge; "
+                "switching to basic auth", self._host,
+            )
+            self._auth = self._basic_auth
+            stream_ctx = self._client.stream(
+                "GET", url, auth=self._auth, timeout=timeout
+            )
+            resp = await stream_ctx.__aenter__()
+
+        try:
+            if resp.status_code in (401, 403):
+                raise ISAPIAuthError(
+                    f"HTTP {resp.status_code} on {url}",
+                    status_code=resp.status_code,
+                )
+            if resp.status_code >= 400:
+                raise ISAPIError(
+                    f"HTTP {resp.status_code} on {url}",
+                    status_code=resp.status_code,
+                )
+            async for chunk in resp.aiter_bytes(chunk_size):
+                yield chunk
+        finally:
+            await stream_ctx.__aexit__(None, None, None)
+
+    async def aclose(self) -> None:
+        """Close the underlying HTTP client if open.
+
+        v0.8: needed by the alertStream reader, which owns a long-lived
+        client rather than the per-request ``async with`` pattern. Closing
+        is idempotent.
+        """
+        if self._client is not None and not self._client.is_closed:
+            await self._client.aclose()
+        self._client = None

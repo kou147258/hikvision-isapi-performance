@@ -46,6 +46,8 @@ _install_stub("homeassistant.const", {
         BINARY_SENSOR="binary_sensor",
         SWITCH="switch",
         BUTTON="button",
+        # v0.8: motion-detection sensitivity number entities.
+        NUMBER="number",
     ),
     "UnitOfTime": types.SimpleNamespace(SECONDS="s", HOURS="h"),
     "UnitOfInformation": types.SimpleNamespace(MEGABYTES="MB", GIGABYTES="GB"),
@@ -83,8 +85,20 @@ _install_stub("homeassistant.config_entries", {
 })
 
 # Components — camera
+#
+# v0.8: real HA's ``Entity`` base defines the class-level default
+# ``_attr_entity_registry_enabled_default = True``, inherited by every
+# entity. The bare ``type()`` stubs lacked it, so a test asserting a
+# non-duplicate channel's entity is "not disabled" raised AttributeError
+# instead of seeing the True default. Give the command-style entity stubs
+# (camera / sensor / switch / binary_sensor) a shared base carrying that
+# default, faithfully mirroring HA rather than loosening the assertion.
+class _EntityRegistryDefaultStub:
+    _attr_entity_registry_enabled_default = True
+
+
 _install_stub("homeassistant.components.camera", {
-    "Camera": type("Camera", (), {}),
+    "Camera": type("Camera", (_EntityRegistryDefaultStub,), {}),
 })
 
 # Components — sensor
@@ -109,6 +123,10 @@ class _SensorEntityDescriptionStub:
     options: object = None
     entity_category: object = None
     has_entity_name: bool | None = None
+    # v0.8: entities that would otherwise show a permanently-misleading
+    # value (storage free/usage on quota-mode devices) are registered
+    # but disabled by default. HA reads this off the description.
+    entity_registry_enabled_default: bool = True
 
 
 _install_stub("homeassistant.components.sensor", {
@@ -118,8 +136,12 @@ _install_stub("homeassistant.components.sensor", {
         DATA_RATE="data_rate",
         DATA_SIZE="data_size",
         PERCENTAGE="percentage",
+        # v0.8: last_boot_time (TIMESTAMP) and HDD status / codec
+        # (ENUMERATION) entities.
+        TIMESTAMP="timestamp",
+        ENUMERATION="enum",
     ),
-    "SensorEntity": type("SensorEntity", (), {}),
+    "SensorEntity": type("SensorEntity", (_EntityRegistryDefaultStub,), {}),
     "SensorEntityDescription": _SensorEntityDescriptionStub,
     "SensorStateClass": types.SimpleNamespace(
         MEASUREMENT="measurement", TOTAL_INCREASING="total_increasing"
@@ -128,15 +150,18 @@ _install_stub("homeassistant.components.sensor", {
 
 # Components — switch
 _install_stub("homeassistant.components.switch", {
-    "SwitchEntity": type("SwitchEntity", (), {}),
+    "SwitchEntity": type("SwitchEntity", (_EntityRegistryDefaultStub,), {}),
 })
 
 # Components — button
 _install_stub("homeassistant.components.button", {
-    "ButtonEntity": type("ButtonEntity", (), {}),
+    "ButtonEntity": type("ButtonEntity", (_EntityRegistryDefaultStub,), {}),
 })
 
 # Components — binary sensor
+# ``_EntityRegistryDefaultStub`` (defined above, before the camera stub)
+# carries real HA's class-level ``_attr_entity_registry_enabled_default``
+# default; see the note there.
 _install_stub("homeassistant.components.binary_sensor", {
     "BinarySensorDeviceClass": types.SimpleNamespace(
         CONNECTIVITY="connectivity",
@@ -145,8 +170,50 @@ _install_stub("homeassistant.components.binary_sensor", {
         # v0.6.26: device_time_abnormal binary sensor uses PROBLEM
         # device class so HA renders it red on the device card.
         PROBLEM="problem",
+        # v0.8: tamper (遮挡) event binary sensor from alertStream.
+        TAMPER="tamper",
     ),
-    "BinarySensorEntity": type("BinarySensorEntity", (), {}),
+    "BinarySensorEntity": type(
+        "BinarySensorEntity", (_EntityRegistryDefaultStub,), {}
+    ),
+})
+
+# Components — number (v0.8: motion-detection sensitivity slider)
+# Real HA's ``NumberEntity`` derives ``native_min_value`` /
+# ``native_max_value`` / ``native_step`` properties from the ``_attr_*``
+# class defaults, and ``native_value`` is overridden by the entity. A
+# bare ``type()`` stub lacks those properties, so tests reading
+# ``n.native_min_value`` would fail even though the entity is correct.
+def _number_attr(name, default):
+    def _get(self):
+        return getattr(self, f"_attr_native_{name}", default)
+    return property(_get)
+
+
+class _NumberEntityStub:
+    native_min_value = _number_attr("min_value", 0.0)
+    native_max_value = _number_attr("max_value", 100.0)
+    native_step = _number_attr("step", 1.0)
+
+    @property
+    def native_value(self):
+        return getattr(self, "_attr_native_value", None)
+
+    async def async_set_native_value(self, value):
+        self._attr_native_value = value
+
+
+_install_stub("homeassistant.components.number", {
+    "NumberEntity": _NumberEntityStub,
+    "NumberMode": types.SimpleNamespace(BOX="box", SLIDER="slider"),
+})
+
+# Helpers — entity (v0.8: entity_category for diagnostic/config split)
+_install_stub("homeassistant.helpers.entity", {
+    "EntityCategory": types.SimpleNamespace(
+        DIAGNOSTIC="diagnostic",
+        CONFIG="config",
+    ),
 })
 
 # Exceptions
@@ -160,11 +227,37 @@ async def _stub_async_added_to_hass(self):
     return None
 
 
+def _stub_async_write_ha_state(self):
+    """Record that the entity asked HA to re-render its state.
+
+    Real HA's ``Entity.async_write_ha_state`` schedules a state push. The
+    recording switch and the v0.8 motion switch/number all call it after
+    an optimistic update. Tests assert it was invoked (so a write path that
+    forgets to refresh the UI is caught) rather than driving the real HA
+    state machine.
+    """
+    self._ha_state_writes = getattr(self, "_ha_state_writes", 0) + 1
+
+
+async def _stub_async_shutdown(self):
+    """Default async_shutdown for stub DataUpdateCoordinator.
+
+    Real HA's ``DataUpdateCoordinator.async_shutdown`` cancels the
+    scheduled refresh task. The integration overrides it in v0.8 to stop
+    the alertStream reader and then chains to ``super()``, so the stub
+    must provide the method or that chain raises AttributeError.
+    """
+    return None
+
+
 _install_stub("homeassistant.helpers.update_coordinator", {
     "DataUpdateCoordinator": type(
         "DataUpdateCoordinator",
         (),
-        {"__class_getitem__": classmethod(lambda cls, _x: cls)},
+        {
+            "__class_getitem__": classmethod(lambda cls, _x: cls),
+            "async_shutdown": _stub_async_shutdown,
+        },
     ),
     "CoordinatorEntity": type(
         "CoordinatorEntity",
@@ -174,6 +267,11 @@ _install_stub("homeassistant.helpers.update_coordinator", {
             "__init__": lambda self, coordinator: setattr(self, "coordinator", coordinator),
             "async_added_to_hass": _stub_async_added_to_hass,
             "_handle_coordinator_update": lambda self: None,
+            # v0.8: real HA defines this on the Entity base class, which
+            # CoordinatorEntity inherits. The recording switch already
+            # called it, but no test had ever exercised a switch PUT path,
+            # so the gap stayed hidden until the motion switch tests.
+            "async_write_ha_state": _stub_async_write_ha_state,
         },
     ),
     "UpdateFailed": type("UpdateFailed", (Exception,), {}),

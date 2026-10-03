@@ -1,0 +1,52 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<DeviceInfo version="2.0">
+
+<deviceName>摄像机09</deviceName>
+
+<deviceID>f9130000-fc5f-11b3-8261-bc9b5e66fbf7</deviceID>
+
+<deviceDescription>IPDome</deviceDescription>
+
+<deviceLocation>hangzhou</deviceLocation>
+
+<systemContact>Hikvision.China</systemContact>
+
+<model>DS-2DE3A20IW-D/GLT/XM</model>
+
+<serialNumber>SN-TEST-015</serialNumber>
+
+<macAddress>02:00:00:00:00:0b</macAddress>
+
+<firmwareVersion>V5.7.30</firmwareVersion>
+
+<firmwareReleasedDate>build 260326</firmwareReleasedDate>
+
+<encoderVersion>V7.3</encoderVersion>
+
+<encoderReleasedDate>build 230712</encoderReleasedDate>
+
+<bootVersion>V1.3.4</bootVersion>
+
+<bootReleasedDate>100316</bootReleasedDate>
+
+<hardwareVersion>0x0</hardwareVersion>
+
+<deviceType>IPDome</deviceType>
+
+<telecontrolID>88</telecontrolID>
+
+<supportBeep>true</supportBeep>
+
+<supportVideoLoss>false</supportVideoLoss>
+
+<firmwareVersionInfo>B-R-E7-0</firmwareVersionInfo>
+
+<manufacturer>hikvision</manufacturer>
+
+<subSerialNumber>SUB-TEST-002</subSerialNumber>
+
+<OEMCode>1</OEMCode>
+
+</DeviceInfo>
+

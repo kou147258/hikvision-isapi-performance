@@ -27,6 +27,7 @@ from __future__ import annotations
 import logging
 import re
 from dataclasses import dataclass
+from datetime import datetime, timedelta, timezone
 from typing import Any
 
 from homeassistant.components.sensor import (
@@ -38,11 +39,15 @@ from homeassistant.components.sensor import (
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import PERCENTAGE, UnitOfInformation, UnitOfTime
 from homeassistant.core import HomeAssistant
+from homeassistant.helpers.entity import EntityCategory
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
 from .const import DOMAIN
 from .coordinator import HikvisionISAPIData, HikvisionISAPICoordinator
-from .entity import HikvisionISAPIEntity
+from .entity import (
+    HikvisionISAPIEntity,
+    channel_entities_disabled_by_default,
+)
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -56,11 +61,15 @@ class HikvisionISAPISensorDescription(SensorEntityDescription):
 
 SENSORS: tuple[HikvisionISAPISensorDescription, ...] = (
     # ---- device identity (from /ISAPI/System/deviceInfo) ----
+    # v0.8 step 12: these are read-only identity/diagnostic telemetry, so
+    # they carry entity_category=DIAGNOSTIC and stay out of the
+    # auto-generated dashboard (which should show state, not part numbers).
     HikvisionISAPISensorDescription(
         key="model",
         translation_key="model",
         name="型号",
         icon="mdi:information-outline",
+        entity_category=EntityCategory.DIAGNOSTIC,
         value_fn=lambda d: _or_none(d.device_info.get("model")),
     ),
     HikvisionISAPISensorDescription(
@@ -68,6 +77,7 @@ SENSORS: tuple[HikvisionISAPISensorDescription, ...] = (
         translation_key="serial_number",
         name="序列号",
         icon="mdi:barcode",
+        entity_category=EntityCategory.DIAGNOSTIC,
         value_fn=lambda d: _or_none(d.device_info.get("serialNumber")),
     ),
     HikvisionISAPISensorDescription(
@@ -75,6 +85,7 @@ SENSORS: tuple[HikvisionISAPISensorDescription, ...] = (
         translation_key="firmware_version",
         name="固件版本",
         icon="mdi:chip",
+        entity_category=EntityCategory.DIAGNOSTIC,
         value_fn=lambda d: _or_none(d.device_info.get("firmwareVersion")),
     ),
     HikvisionISAPISensorDescription(
@@ -82,6 +93,7 @@ SENSORS: tuple[HikvisionISAPISensorDescription, ...] = (
         translation_key="firmware_release_date",
         name="固件发布日期",
         icon="mdi:calendar",
+        entity_category=EntityCategory.DIAGNOSTIC,
         # V5 firmware: "build 240522"; V4: same format.
         value_fn=lambda d: _or_none(d.device_info.get("firmwareReleasedDate")),
     ),
@@ -90,6 +102,7 @@ SENSORS: tuple[HikvisionISAPISensorDescription, ...] = (
         translation_key="device_type",
         name="设备类型",
         icon="mdi:devices",
+        entity_category=EntityCategory.DIAGNOSTIC,
         # Direct from deviceInfo; values like "IPCamera",
         # "NetworkVideoRecorder", "DVR". (V5.x IPC may return
         # "IPZoom" or other product-line-specific strings.)
@@ -100,6 +113,7 @@ SENSORS: tuple[HikvisionISAPISensorDescription, ...] = (
         translation_key="device_id",
         name="设备 ID",
         icon="mdi:identifier",
+        entity_category=EntityCategory.DIAGNOSTIC,
         # UUID-style device ID from <deviceID>. Useful for
         # distinguishing physically-identical units in dashboards.
         value_fn=lambda d: _or_none(d.device_info.get("deviceID")),
@@ -109,6 +123,7 @@ SENSORS: tuple[HikvisionISAPISensorDescription, ...] = (
         translation_key="device_mac",
         name="设备 MAC",
         icon="mdi:network",
+        entity_category=EntityCategory.DIAGNOSTIC,
         # Direct from deviceInfo, distinct from the per-NIC MAC
         # reported by /System/Network/interfaces. On the user's
         # dual-NIC NVR these may differ; the deviceInfo MAC is
@@ -120,6 +135,7 @@ SENSORS: tuple[HikvisionISAPISensorDescription, ...] = (
         translation_key="encoder_version",
         name="编码器版本",
         icon="mdi:codec",
+        entity_category=EntityCategory.DIAGNOSTIC,
         # V4 firmware has this; V5 may omit (returns "").
         value_fn=lambda d: _or_none(d.device_info.get("encoderVersion")),
     ),
@@ -195,6 +211,26 @@ SENSORS: tuple[HikvisionISAPISensorDescription, ...] = (
         # deleted because human-readable values are more useful
         # for runtime tracking.
         value_fn=lambda d: _uptime_hours(d.system_status.get("uptime")),
+    ),
+    # v0.8: last boot time = host_clock - deviceUpTime.
+    #
+    # ``totalRebootCount`` is only returned by 6/12 fleet devices (all
+    # three NVRs and three IPCs lack the field entirely), so the reboot
+    # count sensor is permanently "unknown" on half the fleet. Every
+    # device does report ``deviceUpTime``, so deriving *when* the device
+    # last booted is both broader-coverage and more directly useful —
+    # it answers "did the NVR reboot overnight?" without needing a
+    # counter. Anchored on the HA host clock, NOT the device clock:
+    # 10.18.176.65 reports 2004-05-05 (dead CMOS battery), which would
+    # otherwise poison the result. See ``_last_boot_time``.
+    HikvisionISAPISensorDescription(
+        key="last_boot_time",
+        translation_key="last_boot_time",
+        name="上次启动时间",
+        device_class=SensorDeviceClass.TIMESTAMP,
+        entity_category=EntityCategory.DIAGNOSTIC,
+        icon="mdi:clock-start",
+        value_fn=lambda d: _last_boot_time(d),
     ),
     # ---- channels (only populates if device exposes channel list) ----
     HikvisionISAPISensorDescription(
@@ -368,6 +404,14 @@ SENSORS: tuple[HikvisionISAPISensorDescription, ...] = (
         state_class=SensorStateClass.MEASUREMENT,
         native_unit_of_measurement=UnitOfInformation.GIGABYTES,
         icon="mdi:harddisk",
+        entity_category=EntityCategory.DIAGNOSTIC,
+        # v0.8 decision 3: every device with disks on the fleet reports
+        # ``freeSpace=0`` (workMode=quota, circular-overwrite), so this
+        # sensor would sit at "0 GB" forever — a misleading value. Keep it
+        # (the user chose "retain but disabled") but register it disabled
+        # by default; enable from the entity registry on firmware that
+        # does report real free space.
+        entity_registry_enabled_default=False,
         value_fn=lambda d: _mb_to_gb(d.storage.get("free_mb")),
     ),
     HikvisionISAPISensorDescription(
@@ -377,6 +421,11 @@ SENSORS: tuple[HikvisionISAPISensorDescription, ...] = (
         state_class=SensorStateClass.MEASUREMENT,
         native_unit_of_measurement=PERCENTAGE,
         icon="mdi:harddisk",
+        entity_category=EntityCategory.DIAGNOSTIC,
+        # v0.8 decision 3: derived from free_mb/total_mb, so it reads a
+        # constant 100% whenever freeSpace=0 (the whole fleet). Disabled
+        # by default for the same reason as storage_free_gb.
+        entity_registry_enabled_default=False,
         value_fn=lambda d: _storage_usage_pct(d.storage),
     ),
     # ---- per-channel streaming detail (v0.6.18 / v0.6.27) ----
@@ -515,6 +564,44 @@ def _uptime_hours(value: Any) -> float | None:
     return round(secs / 3600, 1)
 
 
+def _last_boot_time(
+    data: HikvisionISAPIData,
+    now: datetime | None = None,
+) -> datetime | None:
+    """Derive the device's last boot time as ``now - deviceUpTime``.
+
+    **Why host time and not device time.** Probed on the fleet:
+    ``10.18.176.65`` (DS-7708N-I4 V4.1.18) reports
+    ``<currentDeviceTime>2004-05-05T22:43:44+08:00</currentDeviceTime>``
+    — its CMOS battery has failed and the clock is 8179 days off. Its
+    ``deviceUpTime`` (317884 s) is still correct, because that is a
+    monotonic counter since boot, independent of the wall clock.
+
+    Computing ``currentDeviceTime - deviceUpTime`` on that device would
+    yield ``2004-05-02`` — a plausible-looking but completely wrong
+    timestamp. So we anchor on the HA host clock instead:
+    ``utcnow() - deviceUpTime``. 11/12 fleet devices have correct clocks
+    anyway, and the one that doesn't now still gets a right answer.
+
+    Returns ``None`` when uptime is missing, non-numeric, zero or
+    negative — a zero/negative uptime means the device just booted or
+    never reported, and showing "1970" or a future date would be worse
+    than showing "unknown".
+
+    ``now`` is injectable for deterministic tests.
+    """
+    secs = _safe_int((data.system_status or {}).get("uptime"))
+    if secs is None or secs <= 0:
+        return None
+    if now is None:
+        now = datetime.now(timezone.utc)
+    elif now.tzinfo is None:
+        # HA's TIMESTAMP device class requires tz-aware datetimes.
+        now = now.replace(tzinfo=timezone.utc)
+    return now - timedelta(seconds=secs)
+
+
+
 def _first_iface(data: HikvisionISAPIData, field: str) -> Any:
     """Return ``field`` from the first network interface, or None.
 
@@ -621,6 +708,20 @@ async def async_setup_entry(
         ch.get("id", "") for ch in coordinator.channels
     ]  # type: ignore[attr-defined]
 
+    # v0.8: per-channel "最近录像时间" sensors. Built synchronously when
+    # ``recording_status`` is already populated (reload case), otherwise
+    # the dedicated listener below adds them on the first refresh that
+    # carries recording data. Returns [] when the device has no usable
+    # recording-search endpoint (IPCs without storage, 176.51/52/53's 403).
+    per_channel_entities.extend(
+        _build_last_recording_time_entities(
+            coordinator, entry, coordinator.channels
+        )
+    )
+    coordinator._hikvision_isapi_performance_recording_added_ids = [  # type: ignore[attr-defined]
+        cid for cid in (getattr(coordinator, "recording_status", None) or {})
+    ]
+
     # NIC 1 = everything except network_2_* and per-channel
     # sensors (channel_{N}_video_codec / _resolution / etc. for
     # N >= 1). The per-channel entries are emitted by
@@ -638,6 +739,14 @@ async def async_setup_entry(
         d for d in SENSORS
         if not d.key.startswith("network_2_")
         and not re.match(r"^channel_\d+_", d.key)
+        # v0.8: ``reboot_count`` is capability-gated, not static. Only
+        # 6/12 fleet devices return ``<totalRebootCount>`` — all three
+        # NVRs and three IPCs omit the field entirely, so registering it
+        # unconditionally left half the fleet with a permanently
+        # "unknown" entity (the user's reported symptom). It is now
+        # registered by ``_make_reboot_count_listener`` once a refresh
+        # proves the device actually reports it.
+        and d.key != "reboot_count"
     )
 
     entities: list[HikvisionISAPISensor] = [
@@ -652,6 +761,18 @@ async def async_setup_entry(
     ]
     # Append per-channel entities (built above).
     entities.extend(per_channel_entities)
+
+    # v0.8: per-disk health sensors. Disk count is fixed by hardware but
+    # the storage endpoint may not have answered yet at setup time (the
+    # first refresh runs as a background task), so build synchronously
+    # when data is already present and otherwise rely on the listener
+    # below. ``_build_per_hdd_entities`` returns [] when there are no
+    # disks, which covers every IPC.
+    entities.extend(_build_per_hdd_entities(coordinator, entry))
+    coordinator._hikvision_isapi_performance_hdd_added = bool(  # type: ignore[attr-defined]
+        getattr(coordinator, "storage", None)
+        and (coordinator.storage or {}).get("hdds")
+    )
 
     # Add NIC 2 entities synchronously if the coordinator already
     # has the second interface data.
@@ -696,6 +817,39 @@ async def async_setup_entry(
                 hass, entry, coordinator, async_add_entities, storage_descs,
             ),
         )
+
+    # v0.8: late-arrival listener for per-disk health sensors. Unlike
+    # storage totals (gated on device_type), the disk list has its own
+    # arrival timing, so this listener waits for ``storage.hdds``
+    # specifically. Registered unconditionally; the listener itself
+    # no-ops when there are no disks (every IPC) or when the
+    # synchronous path already registered them.
+    if not getattr(coordinator, "_hikvision_isapi_performance_hdd_added", False):
+        coordinator.async_add_listener(
+            _make_hdd_listener(coordinator, entry, async_add_entities),
+        )
+
+    # v0.8: late-arrival + capability gate for ``reboot_count``. The
+    # entity is excluded from the static pass above and registered here
+    # only once a refresh proves the device returns
+    # ``<totalRebootCount>``. Six of twelve fleet devices (all three
+    # NVRs) never report it, so without this gate they would carry a
+    # permanently-"unknown" sensor. Registered unconditionally; the
+    # listener itself no-ops until the field shows up.
+    coordinator.async_add_listener(
+        _make_reboot_count_listener(coordinator, entry, async_add_entities),
+    )
+
+    # v0.8: late-arrival listener for the per-channel "最近录像时间"
+    # sensors. Kept separate from the per-channel listener, whose
+    # ``already_ids`` latch would otherwise skip these forever once the
+    # channels have been registered. Capability-gated: no entity is
+    # created for a channel absent from ``recording_status``, so devices
+    # without recording data (all IPCs, and the 403-ing 176.51/52/53)
+    # get no permanently-"unknown" timestamp.
+    coordinator.async_add_listener(
+        _make_recording_listener(coordinator, entry, async_add_entities),
+    )
 
 
 def _make_nic2_listener(
@@ -769,6 +923,86 @@ def _make_storage_listener(
         async_add_entities(
             [HikvisionISAPISensor(coordinator, entry, d) for d in storage_descs],
         )
+
+    return _on_update
+
+
+def _make_reboot_count_listener(
+    coordinator: HikvisionISAPICoordinator,
+    entry: ConfigEntry,
+    async_add_entities: AddEntitiesCallback,
+):
+    """One-shot listener: register ``reboot_count`` only if the device
+    actually reports ``<totalRebootCount>``.
+
+    v0.8. Probed on the fleet: 6/12 devices return the field
+    (176.10=41, 176.12=1, 176.13/51/52/53=0); the three NVRs and three
+    IPCs never do. Registering the sensor unconditionally left those six
+    with a permanent "unknown" entity — the user's reported symptom.
+
+    The gate is ``"rebootCount" in system_status`` (presence, not truthy):
+    a device reporting ``0`` has genuinely rebooted zero times and gets
+    the entity; a device omitting the field does not. ``last_boot_time``
+    (derived from the universally-present ``deviceUpTime``) stays a static
+    entity and is the broader-coverage replacement.
+
+    Must stay a plain sync function: HA calls ``async_add_listener``
+    callbacks synchronously and discards the result, so an ``async def``
+    here would never run its body (the v0.7.3 dead-listener defect).
+    """
+    desc = next(
+        (d for d in SENSORS if d.key == "reboot_count"), None
+    )
+
+    def _on_update() -> None:
+        if getattr(coordinator, "_hikvision_isapi_performance_reboot_added", False):
+            return
+        if desc is None:
+            return
+        status = getattr(coordinator, "system_status", None) or {}
+        if "rebootCount" not in status:
+            return
+        coordinator._hikvision_isapi_performance_reboot_added = True  # type: ignore[attr-defined]
+        async_add_entities([HikvisionISAPISensor(coordinator, entry, desc)])
+
+    return _on_update
+
+
+def _make_hdd_listener(
+    coordinator: HikvisionISAPICoordinator,
+    entry: ConfigEntry,
+    async_add_entities: AddEntitiesCallback,
+):
+    """One-shot listener: register per-disk sensors once disks are known.
+
+    v0.8. Per-disk health is a *separate* late-arrival from storage
+    totals: a recorder's ``device_type`` may resolve on the first
+    refresh while ``storage.hdds`` only fills in once the storage
+    endpoint answers. Gating per-disk entities on ``device_type`` (as
+    the storage listener does) could register them before the disk
+    list exists, yielding zero entities that never come back.
+
+    So this listener fires only when ``storage.hdds`` is non-empty,
+    and is guarded by ``_hdd_added`` (set by the synchronous path when
+    disks were already present at setup). IPCs never satisfy the
+    condition — their ``hdds`` is always empty — so they get nothing.
+
+    Must stay a plain sync function: HA calls ``async_add_listener``
+    callbacks synchronously and discards the result, so an ``async def``
+    here would never run its body (the v0.7.3 dead-listener defect).
+    """
+
+    def _on_update() -> None:
+        if getattr(coordinator, "_hikvision_isapi_performance_hdd_added", False):
+            return
+        storage = getattr(coordinator, "storage", None) or {}
+        if not storage.get("hdds"):
+            return
+        new_entities = _build_per_hdd_entities(coordinator, entry)
+        if not new_entities:
+            return
+        coordinator._hikvision_isapi_performance_hdd_added = True  # type: ignore[attr-defined]
+        async_add_entities(new_entities)
 
     return _on_update
 
@@ -964,6 +1198,31 @@ def _channel_name_value(channel_id: str):
     return _fn
 
 
+def _channel_session_count(channel_id: str):
+    """Read the active streaming-session count for one channel.
+
+    v0.8. Sourced from the IPC per-channel status endpoint, which answers
+    with a ``StreamingSessionStatusList`` rather than a channel status —
+    the discovery that also exposed the "every IPC shows offline" bug.
+    See ``capabilities.parse_streaming_sessions`` for the fleet probe:
+    9 IPCs report 2–7 sessions, all 3 NVR/DVRs report none, and the
+    device-level ``/Streaming/sessions`` endpoint fails on 12/12.
+
+    NVR/DVR channels carry no ``streaming_sessions`` key at all and their
+    entity is never created, so None here means "the channel disappeared
+    from the data", not "zero sessions". Zero is a real reading (nobody is
+    pulling the stream) and is surfaced as 0.
+    """
+    def _fn(data) -> Any:
+        if data is None:
+            return None
+        for ch in data.channels:
+            if ch.get("id") == channel_id:
+                return ch.get("streaming_sessions")
+        return None
+    return _fn
+
+
 def _build_per_channel_entities(
     coordinator: HikvisionISAPICoordinator,
     entry: ConfigEntry,
@@ -982,6 +1241,14 @@ def _build_per_channel_entities(
     channel_id = str(channel.get("id", "")).strip() or "1"
     # Default-name fallback when the device doesn't return one.
     default_name = channel.get("name") or f"Channel {channel_id}"
+    # v0.8 dedup: a channel that is the same physical camera as another
+    # separately-configured entry (9 of NVR 176.64's 13 channels match 9
+    # standalone IPCs by serial number) gets its entities registered
+    # disabled by default. Descriptions are frozen dataclasses, so the
+    # flag must be supplied at construction time.
+    enabled_default = not channel_entities_disabled_by_default(
+        coordinator, channel_id
+    )
 
     # v0.7.5: per-stream entities named after the camera and the stream
     # tier — "摄像机12 主码流 视频编码" / "摄像机12 子码流 视频编码" — so a
@@ -1031,6 +1298,7 @@ def _build_per_channel_entities(
                     device_class=dev_class,
                     state_class=state_class,
                     native_unit_of_measurement=unit,
+                    entity_registry_enabled_default=enabled_default,
                     value_fn=_channel_tier_field(channel_id, tier, field),
                 )
             )
@@ -1043,9 +1311,174 @@ def _build_per_channel_entities(
             translation_key=None,
             name=f"{default_name} 名称",
             icon="mdi:tag",
+            entity_registry_enabled_default=enabled_default,
             value_fn=_channel_name_value(channel_id),
         )
     )
+
+    # v0.8: active streaming-session count, created ONLY when this channel
+    # actually carries session data. The key is absent on NVR/DVR channels
+    # (their status endpoint returns InputProxyChannelStatus, not a session
+    # list — probed 3/3), so those devices get no session sensor at all
+    # instead of a permanently-empty one. ``streaming_sessions == 0`` is a
+    # real reading (nobody is pulling the stream) and DOES get an entity.
+    #
+    # Count only — never the client IPs inside the session list, which
+    # would publish the user's LAN topology. See
+    # capabilities.parse_streaming_sessions.
+    if "streaming_sessions" in channel:
+        descs.append(
+            HikvisionISAPISensorDescription(
+                key=f"channel_{channel_id}_streaming_sessions",
+                translation_key=None,
+                name=f"{default_name} 活动流会话数",
+                icon="mdi:lan-connect",
+                state_class=SensorStateClass.MEASUREMENT,
+                entity_category=EntityCategory.DIAGNOSTIC,
+                entity_registry_enabled_default=enabled_default,
+                value_fn=_channel_session_count(channel_id),
+            )
+        )
+
+    return [
+        HikvisionISAPISensor(coordinator, entry, desc) for desc in descs
+    ]
+
+
+# v0.8: per-disk health sensors.
+#
+# The fleet probe found that a bay count varies per device
+# (DS-8632N-I8 = 5 bays of which one is empty, DS-7708N-I4 = 1,
+# the nine IPCs = none at all), so these must be generated from the
+# parsed disk list rather than declared statically.
+#
+# ``notexist`` bays never reach here — ``_parse_storage`` drops them.
+# Devices with no disks get NO entities at all: a permanently-0
+# "fault count" on an IPC is noise, not information.
+_HDD_STATUS_OPTIONS = (
+    "ok", "normal", "idle", "unformatted",
+    "error", "reparing", "formatting", "unknown",
+)
+
+
+def _hdd_field(hdd_id: str, field: str):
+    """Return ``field`` for the disk with ``hdd_id``, else None."""
+
+    def _fn(data: HikvisionISAPIData) -> Any:
+        for h in (data.storage or {}).get("hdds", []):
+            if str(h.get("id", "")) == str(hdd_id):
+                return h.get(field)
+        return None
+
+    return _fn
+
+
+def _hdd_count(data: HikvisionISAPIData) -> int | None:
+    return (data.storage or {}).get("hdd_error_count")
+
+
+def _build_per_hdd_entities(
+    coordinator: HikvisionISAPICoordinator,
+    entry: ConfigEntry,
+) -> list[HikvisionISAPISensor]:
+    """Build per-disk status sensors + one aggregate fault-count sensor.
+
+    Returns an empty list for devices without disks (all IPCs in the
+    fleet, and any recorder whose storage endpoint is rejected).
+    """
+    storage = getattr(coordinator, "storage", None) or {}
+    hdds = storage.get("hdds") or []
+    if not hdds:
+        return []
+
+    descs: list[HikvisionISAPISensorDescription] = []
+    for h in hdds:
+        hid = str(h.get("id", ""))
+        label = h.get("name") or f"硬盘 {hid}"
+        # translation_key stays None: every disk would share one key and
+        # HA would render identical labels, hiding which bay is which.
+        descs.append(
+            HikvisionISAPISensorDescription(
+                key=f"hdd_{hid}_status",
+                translation_key=None,
+                name=f"{label} 状态",
+                icon="mdi:harddisk",
+                device_class=SensorDeviceClass.ENUMERATION,
+                entity_category=EntityCategory.DIAGNOSTIC,
+                options=list(_HDD_STATUS_OPTIONS),
+                value_fn=_hdd_field(hid, "status"),
+            )
+        )
+    descs.append(
+        HikvisionISAPISensorDescription(
+            key="hdd_error_count",
+            translation_key="hdd_error_count",
+            name="硬盘异常数",
+            icon="mdi:harddisk-remove",
+            state_class=SensorStateClass.MEASUREMENT,
+            entity_category=EntityCategory.DIAGNOSTIC,
+            value_fn=_hdd_count,
+        )
+    )
+    return [
+        HikvisionISAPISensor(coordinator, entry, desc) for desc in descs
+    ]
+
+
+def _last_recording_time_value(channel_id: str):
+    """Read the derived last-recording timestamp for one channel."""
+
+    def _fn(data: HikvisionISAPIData) -> Any:
+        rec = getattr(data, "recording_status", None) or {}
+        derived = rec.get(str(channel_id))
+        if derived is None:
+            return None
+        return derived.get("last_recording_time")
+
+    return _fn
+
+
+def _build_last_recording_time_entities(
+    coordinator: HikvisionISAPICoordinator,
+    entry: ConfigEntry,
+    channels: list[dict[str, Any]],
+) -> list[HikvisionISAPISensor]:
+    """Build a "最近录像时间" TIMESTAMP sensor per channel with recording data.
+
+    v0.8. Companion to the recording binary sensor: it shows *when* the
+    device last wrote a recording segment, so the user can judge how fresh
+    the derived "recording active" verdict is (the binary sensor can lag a
+    real stop by up to one segment length).
+
+    Capability-gated: channels absent from ``recording_status`` (IPCs with
+    no storage, devices whose search endpoint 403'd) get no entity, so
+    there's no permanently-"unknown" timestamp cluttering the device card.
+    """
+    rec_status = getattr(coordinator, "recording_status", None) or {}
+    if not rec_status:
+        return []
+    descs: list[HikvisionISAPISensorDescription] = []
+    for ch in channels:
+        cid = str(ch.get("id", ""))
+        if cid not in rec_status:
+            continue
+        name = ch.get("name") or f"Channel {cid}"
+        descs.append(
+            HikvisionISAPISensorDescription(
+                key=f"channel_{cid}_last_recording",
+                translation_key=None,
+                name=f"{name} 最近录像时间",
+                icon="mdi:record-rec",
+                device_class=SensorDeviceClass.TIMESTAMP,
+                entity_category=EntityCategory.DIAGNOSTIC,
+                # v0.8 dedup: the NVR-side copy of a camera that is also
+                # configured directly is registered disabled.
+                entity_registry_enabled_default=(
+                    not channel_entities_disabled_by_default(coordinator, cid)
+                ),
+                value_fn=_last_recording_time_value(cid),
+            )
+        )
     return [
         HikvisionISAPISensor(coordinator, entry, desc) for desc in descs
     ]
@@ -1094,6 +1527,63 @@ def _make_per_channel_listener(
                 list(already_ids)
             )  # type: ignore[attr-defined]
             async_add_entities(new_entities)
+
+    return _on_update
+
+
+def _make_recording_listener(
+    coordinator: HikvisionISAPICoordinator,
+    entry: ConfigEntry,
+    async_add_entities: AddEntitiesCallback,
+):
+    """Listener: register per-channel "最近录像时间" sensors when data arrives.
+
+    v0.8. ``recording_status`` is filled by the segment-search POST in the
+    same refresh as ``channels``, but this cannot piggy-back on
+    ``_make_per_channel_listener``: that one latches on
+    ``already_ids`` (channels registered) and returns early afterwards, so
+    recording entities would be skipped forever on any refresh after the
+    channels first appeared. A separate one-shot-per-channel set is used.
+
+    Capability-gated by construction: only channels present in
+    ``recording_status`` get an entity, so IPCs with no storage and devices
+    whose search endpoint 403'd (176.51/52/53) get nothing instead of a
+    permanently-"unknown" timestamp.
+
+    Must stay a plain sync function: HA's ``async_add_listener`` expects
+    ``Callable[[], None]`` and calls callbacks synchronously, discarding
+    the return value — an ``async def`` here would never execute its body
+    (the v0.7.3 dead-listener defect).
+    """
+    already: set[str] = set(
+        getattr(
+            coordinator,
+            "_hikvision_isapi_performance_recording_added_ids",
+            [],
+        ) or []
+    )
+
+    def _on_update() -> None:
+        rec_status = getattr(coordinator, "recording_status", None) or {}
+        if not rec_status:
+            return
+        new_ids = set(rec_status) - already
+        if not new_ids:
+            return
+        channels = [
+            ch for ch in coordinator.channels
+            if str(ch.get("id", "")) in new_ids
+        ]
+        new_entities = _build_last_recording_time_entities(
+            coordinator, entry, channels
+        )
+        if not new_entities:
+            return
+        already.update(new_ids)
+        coordinator._hikvision_isapi_performance_recording_added_ids = (  # type: ignore[attr-defined]
+            list(already)
+        )
+        async_add_entities(new_entities)
 
     return _on_update
 

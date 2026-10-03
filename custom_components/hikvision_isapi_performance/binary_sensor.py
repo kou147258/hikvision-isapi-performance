@@ -37,7 +37,10 @@ from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
 from .const import DOMAIN
 from .coordinator import HikvisionISAPICoordinator
-from .entity import HikvisionISAPIEntity
+from .entity import (
+    HikvisionISAPIEntity,
+    channel_entities_disabled_by_default,
+)
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -176,6 +179,22 @@ async def async_setup_entry(
     ]
     for ch in coordinator.channels:
         entities.extend(_entities_for_channel(coordinator, entry, ch))
+    # v0.8: per-disk fault sensors. Built synchronously when the storage
+    # endpoint already answered; otherwise the listener below adds them.
+    # Returns [] for devices without disks (every IPC).
+    entities.extend(_build_per_hdd_binary_entities(coordinator, entry))
+    coordinator._hikvision_isapi_performance_hdd_binary_added = bool(  # type: ignore[attr-defined]
+        getattr(coordinator, "storage", None)
+        and (coordinator.storage or {}).get("hdds")
+    )
+    # v0.8: alertStream push-event sensors (video_loss / tamper). Empty
+    # until the reader task connects and the device actually pushes
+    # something, so normally the listener below does the registering.
+    event_entities = _build_event_binary_entities(coordinator, entry)
+    entities.extend(event_entities)
+    coordinator._hikvision_isapi_performance_event_added = [  # type: ignore[attr-defined]
+        (e._sensor_key, e._channel_id) for e in event_entities
+    ]
     async_add_entities(entities)
 
     # Per-channel listener for late-arriving channels.
@@ -184,6 +203,72 @@ async def async_setup_entry(
         coordinator.async_add_listener(
             _make_binary_listener(hass, entry, coordinator, async_add_entities)
         )
+
+    # v0.8: separate listener for late-arriving disks. The channel
+    # listener above is one-shot and gated on ``coordinator.channels``,
+    # so it can fire (and latch) before the storage endpoint answers —
+    # the disk sensors would then never be registered. Keeping a distinct
+    # flag avoids that race.
+    if not getattr(
+        coordinator, "_hikvision_isapi_performance_hdd_binary_added", False
+    ):
+        coordinator.async_add_listener(
+            _make_hdd_binary_listener(coordinator, entry, async_add_entities)
+        )
+
+    # v0.8: incremental listener for push-event sensors. Unlike the disk
+    # listener this is NOT one-shot: the reader connects asynchronously,
+    # and new channels can begin pushing later (a camera that comes back
+    # online, or a motion event on a channel that had been silent). It
+    # tracks which (sensor_key, channel_id) pairs are already registered
+    # and only adds new ones.
+    coordinator.async_add_listener(
+        _make_event_listener(coordinator, entry, async_add_entities)
+    )
+
+
+def _make_event_listener(
+    coordinator: HikvisionISAPICoordinator,
+    entry: ConfigEntry,
+    async_add_entities: AddEntitiesCallback,
+):
+    """Incremental listener: register push-event sensors as channels appear.
+
+    Must stay a plain sync function: HA's ``async_add_listener`` expects
+    ``Callable[[], None]`` and calls callbacks synchronously, discarding
+    the return value — an ``async def`` here would never execute its body
+    (the v0.7.3 dead-listener defect).
+    """
+    already: set[tuple[str, str]] = set(
+        getattr(coordinator, "_hikvision_isapi_performance_event_added", None)
+        or []
+    )
+
+    def _on_update() -> None:
+        event_state = getattr(coordinator, "event_state", None) or {}
+        if not event_state:
+            return
+        # Which (sensor_key, channel) pairs exist now but aren't registered?
+        current = {
+            (sensor_key, str(channel_id))
+            for sensor_key in _EVENT_SENSOR_SPECS
+            for channel_id in (event_state.get(sensor_key) or {})
+        }
+        new_pairs = current - already
+        if not new_pairs:
+            return
+        built = _build_event_binary_entities(coordinator, entry)
+        new_entities = [
+            e for e in built
+            if (e._sensor_key, e._channel_id) in new_pairs
+        ]
+        if not new_entities:
+            return
+        already.update(new_pairs)
+        coordinator._hikvision_isapi_performance_event_added = list(already)  # type: ignore[attr-defined]
+        async_add_entities(new_entities)
+
+    return _on_update
 
 
 def _make_binary_listener(
@@ -218,15 +303,59 @@ def _make_binary_listener(
     return _on_update
 
 
+def _make_hdd_binary_listener(
+    coordinator: HikvisionISAPICoordinator,
+    entry: ConfigEntry,
+    async_add_entities: AddEntitiesCallback,
+):
+    """One-shot listener: register per-disk PROBLEM sensors once disks exist.
+
+    v0.8. Deliberately separate from ``_make_binary_listener``: that one
+    is gated on ``coordinator.channels`` and latches on its first
+    non-empty result, which can happen before the storage endpoint
+    answers. Sharing the flag would mean the disk sensors never get
+    registered on a recorder whose channels resolve first.
+
+    No-ops for devices without disks (every IPC — ``storage.hdds`` is
+    empty), so they never get a permanently-False fault sensor.
+
+    Must stay a plain sync function: HA calls ``async_add_listener``
+    callbacks synchronously and discards the return value, so an
+    ``async def`` here would never execute its body (the v0.7.3
+    dead-listener defect).
+    """
+
+    def _on_update() -> None:
+        if getattr(
+            coordinator, "_hikvision_isapi_performance_hdd_binary_added", False
+        ):
+            return
+        storage = getattr(coordinator, "storage", None) or {}
+        if not storage.get("hdds"):
+            return
+        new_entities = _build_per_hdd_binary_entities(coordinator, entry)
+        if not new_entities:
+            return
+        coordinator._hikvision_isapi_performance_hdd_binary_added = True  # type: ignore[attr-defined]
+        async_add_entities(new_entities)
+
+    return _on_update
+
+
 def _entities_for_channel(
     coordinator: HikvisionISAPICoordinator,
     entry: ConfigEntry,
     channel: dict[str, Any],
 ) -> list[BinarySensorEntity]:
-    """Build the three binary sensors for one channel."""
+    """Build the three binary sensors for one channel.
+
+    v0.8: entities for a channel that is the same physical camera as
+    another configured entry (an NVR-side duplicate) are registered
+    disabled by default — see ``entity.channel_entities_disabled_by_default``.
+    """
     ch_id = channel.get("id", "")
     ch_name = channel.get("name") or f"Channel {ch_id}"
-    return [
+    entities = [
         HikvisionISAPIChannelOnlineBinarySensor(coordinator, entry, ch_id, ch_name),
         HikvisionISAPIChannelRecordingBinarySensor(
             coordinator, entry, ch_id, ch_name
@@ -235,6 +364,156 @@ def _entities_for_channel(
             coordinator, entry, ch_id, ch_name
         ),
     ]
+    if channel_entities_disabled_by_default(coordinator, ch_id):
+        for ent in entities:
+            ent._attr_entity_registry_enabled_default = False
+    return entities
+
+
+# v0.8: per-disk fault binary sensor.
+#
+# Healthy states observed on the fleet are ok / normal / idle /
+# unformatted (idle = spare or standby bay, still a working disk).
+# Anything else — error, reparing, formatting, an unknown value —
+# turns the sensor ON. ``notexist`` bays never reach here because
+# ``_parse_storage`` drops them.
+_HDD_HEALTHY_STATES = frozenset({"ok", "normal", "idle", "unformatted"})
+
+
+def _build_per_hdd_binary_entities(
+    coordinator: HikvisionISAPICoordinator,
+    entry: ConfigEntry,
+) -> list[BinarySensorEntity]:
+    """Build one PROBLEM binary sensor per physical disk.
+
+    Returns an empty list for devices without disks (all IPCs).
+    """
+    storage = getattr(coordinator, "storage", None) or {}
+    hdds = storage.get("hdds") or []
+    return [
+        HikvisionISAPIHddProblemBinarySensor(
+            coordinator, entry,
+            str(h.get("id", "")),
+            h.get("name") or f"硬盘 {h.get('id', '')}",
+        )
+        for h in hdds
+    ]
+
+
+# v0.8: alertStream push-event sensors.
+#
+# sensor_key -> (中文标签, device_class). ``motion`` is deliberately NOT
+# here: the polling-based ``channel_{N}_motion`` entity already exists,
+# and adding a second push-based motion sensor per channel would be
+# exactly the duplicate-entity problem this release set out to remove.
+# Instead that existing entity was changed to prefer push data and fall
+# back to polling (see HikvisionISAPIChannelMotionBinarySensor.is_on).
+_EVENT_SENSOR_SPECS = {
+    "video_loss": ("视频丢失", BinarySensorDeviceClass.PROBLEM),
+    "tamper": ("画面遮挡", BinarySensorDeviceClass.TAMPER),
+}
+
+
+def _event_channel_name(
+    coordinator: HikvisionISAPICoordinator, channel_id: str
+) -> str:
+    """Best-effort display name for a channel that pushed an event.
+
+    Prefers the ``channelName`` the device sent on alertStream (freshest,
+    and the only source for channels the coordinator hasn't listed), then
+    the coordinator's channel list, then a generic fallback. Never raises.
+    """
+    meta = (getattr(coordinator, "event_meta", None) or {}).get(channel_id)
+    if meta and meta.get("channel_name"):
+        return str(meta["channel_name"])
+    for ch in getattr(coordinator, "channels", None) or []:
+        if str(ch.get("id", "")) == str(channel_id) and ch.get("name"):
+            return str(ch["name"])
+    data = getattr(coordinator, "data", None)
+    for ch in (getattr(data, "channels", None) or []):
+        if str(ch.get("id", "")) == str(channel_id) and ch.get("name"):
+            return str(ch["name"])
+    return f"通道 {channel_id}"
+
+
+def _build_event_binary_entities(
+    coordinator: HikvisionISAPICoordinator,
+    entry: ConfigEntry,
+) -> list[BinarySensorEntity]:
+    """Build video_loss / tamper sensors for channels that actually pushed.
+
+    Capability-gated on **observed alertStream activity**, not on the
+    ``/Event/triggers`` catalog. Real-fleet evidence: the catalog omits
+    ``videoloss`` on 176.18 / 176.12 / 176.13 / 176.52, yet alertStream
+    delivers videoloss on 10 of 11 devices — gating on the catalog would
+    create no video_loss sensor anywhere.
+
+    ``channelID=0`` (device-level events on NVRs 176.65 / 192.168.10.17)
+    is kept as its own entity rather than dropped.
+
+    Returns [] when nothing has been pushed, so a device whose stream is
+    unreachable (or which pushes nothing) gets no permanently-unknown
+    entities.
+    """
+    event_state = getattr(coordinator, "event_state", None) or {}
+    entities: list[BinarySensorEntity] = []
+    for sensor_key in _EVENT_SENSOR_SPECS:
+        per_channel = event_state.get(sensor_key) or {}
+        for channel_id in per_channel:
+            name = _event_channel_name(coordinator, channel_id)
+            entities.append(
+                HikvisionISAPIEventBinarySensor(
+                    coordinator, entry, sensor_key, str(channel_id), name,
+                )
+            )
+    return entities
+
+
+class HikvisionISAPIEventBinarySensor(
+    HikvisionISAPIEntity, BinarySensorEntity
+):
+    """v0.8: push-driven event binary sensor (video_loss / tamper).
+
+    Reads ``coordinator.event_state[sensor_key][channel_id]``, which the
+    alertStream reader updates in sub-second time — versus the 30 s poll
+    latency of the status-endpoint entities.
+
+    Returns ``None`` (unknown) for a channel that never pushed this event
+    type, rather than asserting "no problem".
+
+    The reader calls ``async_update_listeners()`` only on a genuine state
+    transition, so a fire-hose device (176.10 pushed 2.25 MB in 8 s) does
+    not thrash entity updates.
+    """
+
+    def __init__(
+        self,
+        coordinator: HikvisionISAPICoordinator,
+        entry: ConfigEntry,
+        sensor_key: str,
+        channel_id: str,
+        channel_name: str,
+    ) -> None:
+        super().__init__(coordinator, entry)
+        self._sensor_key = sensor_key
+        self._channel_id = channel_id
+        self._attr_unique_id = (
+            f"{entry.entry_id}_channel_{channel_id}_{sensor_key}"
+        )
+        # Label and device_class come from the spec table so there is a
+        # single source of truth (the builder and the entity can't drift).
+        label, device_class = _EVENT_SENSOR_SPECS[sensor_key]
+        self._attr_name = f"{channel_name} {label}"
+        self._attr_device_class = device_class
+
+    @property
+    def is_on(self) -> bool | None:
+        per_channel = (
+            getattr(self.coordinator, "event_state", None) or {}
+        ).get(self._sensor_key) or {}
+        if self._channel_id not in per_channel:
+            return None
+        return bool(per_channel[self._channel_id])
 
 
 class HikvisionISAPIChannelOnlineBinarySensor(
@@ -242,7 +521,10 @@ class HikvisionISAPIChannelOnlineBinarySensor(
 ):
     """Per-channel online / reachability binary sensor."""
 
-    _attr_translation_key = "channel_online"
+    # translation_key is deliberately None: in real HA it takes precedence
+    # over ``_attr_name``, and every channel shares one key, so all channels
+    # would render the same label and the camera names would never surface.
+    # (Same conclusion sensor.py reached in v0.7.5 for per-channel sensors.)
     _attr_device_class = BinarySensorDeviceClass.CONNECTIVITY
 
     def __init__(
@@ -264,16 +546,45 @@ class HikvisionISAPIChannelOnlineBinarySensor(
             return None
         for ch in self.coordinator.data.channels:
             if ch.get("id") == self._channel_id:
-                return bool(ch.get("online", False))
+                # v0.8: tri-state. ``online`` is None when no endpoint
+                # reported the field — on every IPC in the fleet the
+                # per-channel status endpoint returns a streaming-session
+                # list with no <online>, so bool(None) used to render
+                # "离线" for cameras that were actively streaming.
+                online = ch.get("online")
+                if online is None:
+                    return None
+                return bool(online)
         return None
 
 
 class HikvisionISAPIChannelRecordingBinarySensor(
     HikvisionISAPIEntity, BinarySensorEntity
 ):
-    """Per-channel recording state binary sensor."""
+    """Per-channel recording state binary sensor.
 
-    _attr_translation_key = "channel_recording"
+    v0.8: now prefers ``coordinator.recording_status`` (derived from
+    ``/ContentMgmt/search`` recording segments) over the channel's own
+    ``recording`` field. Reason: on every NVR in the fleet the
+    ``recording`` field is permanently ``None`` (InputProxyChannelList
+    and the per-channel /status both omit it, and every
+    /ContentMgmt/Recording/* path returns 404), so the old entity showed
+    "unknown" forever — the user's reported symptom. The segment search
+    is the only endpoint that yields real recording data (4/12 fleet
+    devices).
+
+    The verdict is **derived**, not device-reported: a segment's planned
+    end time is compared against "now", so a channel that stops
+    recording stays "on" until its last pre-allocated segment ends
+    (detection lag up to one segment length, 17–358 min observed). The
+    entity name marks this with "推导" so the user isn't misled, and a
+    companion "最近录像时间" timestamp sensor shows how fresh the verdict
+    is. Falls back to ``ch.recording`` for IPCs whose status endpoint
+    does report recording directly.
+    """
+
+    # No translation_key — it would override ``_attr_name`` in real HA and
+    # erase both the camera name and the "（推导）" honesty marker below.
     _attr_device_class = BinarySensorDeviceClass.RUNNING
 
     def __init__(
@@ -287,22 +598,26 @@ class HikvisionISAPIChannelRecordingBinarySensor(
         self._channel_id = channel_id
         self._channel_name = channel_name
         self._attr_unique_id = f"{entry.entry_id}_channel_{channel_id}_recording"
-        self._attr_name = f"{channel_name} 录像中"
+        # v0.8: "推导" marks this as derived from segment timing, not a
+        # device-reported recording flag.
+        self._attr_name = f"{channel_name} 录像中（推导）"
 
     @property
     def is_on(self) -> bool | None:
         if self.coordinator.data is None:
             return None
+        # Prefer the derived recording status (segment search).
+        rec_status = getattr(self.coordinator, "recording_status", None) or {}
+        derived = rec_status.get(self._channel_id)
+        if derived is not None and "recording_active" in derived:
+            active = derived.get("recording_active")
+            if active is not None:
+                return bool(active)
+        # Fall back to the channel's own recording field (tri-state:
+        # None means no endpoint reported it → render "unknown", never
+        # coerce to False).
         for ch in self.coordinator.data.channels:
             if ch.get("id") == self._channel_id:
-                # v0.7.4: ``recording`` is tri-state. ``None`` means no
-                # ISAPI endpoint reported a <recordStatus> — true for
-                # every NVR in the user's fleet (InputProxyChannelList
-                # and the per-channel /status both omit it, and every
-                # /ContentMgmt/Recording/* path returns 404). The old
-                # ``bool(ch.get("recording", False))`` turned that
-                # silence into "未在运行", asserting a fact the device
-                # never stated. Mirrors the motion sensor below.
                 recording = ch.get("recording")
                 if recording is None:
                     return None
@@ -321,7 +636,7 @@ class HikvisionISAPIChannelMotionBinarySensor(
     ``unknown``.
     """
 
-    _attr_translation_key = "channel_motion"
+    # No translation_key — see the note on the online sensor above.
     _attr_device_class = BinarySensorDeviceClass.MOTION
 
     def __init__(
@@ -341,6 +656,15 @@ class HikvisionISAPIChannelMotionBinarySensor(
     def is_on(self) -> bool | None:
         if self.coordinator.data is None:
             return None
+        # v0.8: prefer alertStream push data — it arrives in sub-second
+        # time, versus the 30 s poll of the status endpoint. Reading push
+        # here (instead of adding a second push-based motion entity) is
+        # what keeps one motion sensor per channel rather than two.
+        pushed = (
+            getattr(self.coordinator, "event_state", None) or {}
+        ).get("motion") or {}
+        if self._channel_id in pushed:
+            return bool(pushed[self._channel_id])
         for ch in self.coordinator.data.channels:
             if ch.get("id") == self._channel_id:
                 # The coordinator may not have enriched this channel
@@ -479,3 +803,44 @@ class HikvisionISAPIMemCalibrationWarnBinarySensor(
             self.coordinator.data.system_status.get("memoryUsage"),
             self.coordinator.data.system_status.get("memoryAvailable"),
         )
+
+
+class HikvisionISAPIHddProblemBinarySensor(
+    HikvisionISAPIEntity, BinarySensorEntity
+):
+    """v0.8: per-disk fault binary sensor (PROBLEM device class).
+
+    ON when the disk's ``<status>`` is anything other than a healthy
+    state. Probed on the fleet: ``ok`` / ``idle`` (spare bay) /
+    ``normal`` / ``unformatted`` are all fine; ``error``, ``reparing``,
+    ``formatting`` or any unknown value is a fault. Empty bays
+    (``notexist``) never reach here — the parser drops them.
+
+    PROBLEM device class so HA renders it red on the device card and
+    it works with the built-in "problem" automations.
+    """
+
+    _attr_device_class = BinarySensorDeviceClass.PROBLEM
+
+    def __init__(
+        self,
+        coordinator: HikvisionISAPICoordinator,
+        entry: ConfigEntry,
+        hdd_id: str,
+        hdd_name: str,
+    ) -> None:
+        super().__init__(coordinator, entry)
+        self._hdd_id = hdd_id
+        self._attr_unique_id = f"{entry.entry_id}_hdd_{hdd_id}_problem"
+        self._attr_name = f"{hdd_name} 故障"
+
+    @property
+    def is_on(self) -> bool | None:
+        if self.coordinator.data is None:
+            return None
+        for h in (self.coordinator.data.storage or {}).get("hdds", []):
+            if str(h.get("id", "")) == self._hdd_id:
+                status = (h.get("status") or "").strip().lower()
+                return status not in _HDD_HEALTHY_STATES
+        return None
+

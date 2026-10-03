@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<DeviceStatus version="1.0">
+<currentDeviceTime>2004-05-05T22:43:44+08:00</currentDeviceTime>
+<deviceUpTime>317884</deviceUpTime>
+<CPUList>
+<CPU>
+<cpuDescription>2786.91</cpuDescription>
+<cpuUtilization>0</cpuUtilization>
+</CPU>
+</CPUList>
+<MemoryList>
+<Memory>
+<memoryDescription>DDR Memory</memoryDescription>
+<memoryUsage>
+734.953125</memoryUsage>
+<memoryAvailable>
+395.894531</memoryAvailable>
+</Memory>
+</MemoryList>
+</DeviceStatus>

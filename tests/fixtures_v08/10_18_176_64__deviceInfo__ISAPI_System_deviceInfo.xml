@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<DeviceInfo version="2.0">
+<deviceName>录像机01</deviceName>
+<deviceID>48373934-3931-3037-3137-1868cba06f9c</deviceID>
+<model>DS-8632N-I8</model>
+<serialNumber>SN-TEST-010</serialNumber>
+<macAddress>02:00:00:00:00:06</macAddress>
+<firmwareVersion>V4.61.030</firmwareVersion>
+<firmwareReleasedDate>build 240123</firmwareReleasedDate>
+<encoderVersion>V5.0</encoderVersion>
+<encoderReleasedDate>build 221117</encoderReleasedDate>
+<deviceType>NVR</deviceType>
+<telecontrolID>255</telecontrolID>
+<hardwareVersion>0100054102000000</hardwareVersion>
+<decordChannelNums>16</decordChannelNums>
+<VGANums>2</VGANums>
+<USBNums>3</USBNums>
+<auxoutNums>0</auxoutNums>
+<regionVersion>basic</regionVersion>
+</DeviceInfo>

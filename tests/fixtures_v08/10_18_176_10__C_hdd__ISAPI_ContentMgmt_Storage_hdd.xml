@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<hddList version="1.0" size="8" >
+<hdd>
+<id>1</id>
+<hddName>hdde</hddName>
+<hddPath></hddPath>
+<hddType>SATA</hddType>
+<status>ok</status>
+<capacity>119290</capacity>
+<freeSpace>0</freeSpace>
+<property>RW</property>
+<formatType>EXT4</formatType>
+<Encryption>
+<passwordLen min="6" max="64"/>
+<encryptionStatus opt="unencrypted,encrypted,verfyFailed">encrypted</encryptionStatus>
+<encryptFormatType opt="EXT4">EXT4</encryptFormatType>
+</Encryption>
+<installationTime>25-Sep-2026 08:15</installationTime>
+</hdd>
+</hddList>

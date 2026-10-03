@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<DeviceStatus version="1.0">
+<currentDeviceTime>2026-09-27T08:37:11+08:00</currentDeviceTime>
+<deviceUpTime>173358</deviceUpTime>
+<MemoryList>
+<Memory>
+<memoryDescription>DDR Memory</memoryDescription>
+<memoryUsage>
+387.093750</memoryUsage>
+<memoryAvailable>
+562.992188</memoryAvailable>
+</Memory>
+</MemoryList>
+</DeviceStatus>

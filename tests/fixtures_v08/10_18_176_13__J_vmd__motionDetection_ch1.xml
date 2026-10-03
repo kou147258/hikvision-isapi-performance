@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<MotionDetection version="2.0">
+<enabled>true</enabled>
+<enableHighlight>true</enableHighlight>
+<samplingInterval>2</samplingInterval>
+<startTriggerTime>500</startTriggerTime>
+<endTriggerTime>500</endTriggerTime>
+<regionType>grid</regionType>
+<Grid>
+<rowGranularity>18</rowGranularity>
+<columnGranularity>22</columnGranularity>
+</Grid>
+<MotionDetectionLayout version="2.0">
+<sensitivityLevel>60</sensitivityLevel>
+<layout>
+<gridMap>fffffcfffffcfffffcfffffcfffffcfffffcfffffcfffffcfffffcfffffcfffffcfffffcfffffcfffffcfffffcfffffcfffffcfffffc</gridMap>
+</layout>
+</MotionDetectionLayout>
+</MotionDetection>

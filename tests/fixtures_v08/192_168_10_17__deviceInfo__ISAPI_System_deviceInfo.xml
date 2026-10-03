@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<DeviceInfo version="1.0">
+<deviceName>Network Video Recorder</deviceName>
+<deviceID>48474831-3737-3032-3635-88de39c4bade</deviceID>
+<model>DS-7804N-R2/4P(C)</model>
+<serialNumber>SN-TEST-020</serialNumber>
+<macAddress>02:00:00:00:00:09</macAddress>
+<firmwareVersion>V4.84.031</firmwareVersion>
+<firmwareReleasedDate>build 251210</firmwareReleasedDate>
+<encoderVersion>V5.0</encoderVersion>
+<encoderReleasedDate>build 250710</encoderReleasedDate>
+<deviceType>NVR</deviceType>
+<telecontrolID>255</telecontrolID>
+<hardwareVersion>B-R-K20A9-00</hardwareVersion>
+<manufacturer>hikvision</manufacturer>
+</DeviceInfo>

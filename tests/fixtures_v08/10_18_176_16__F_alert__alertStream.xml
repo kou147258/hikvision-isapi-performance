@@ -1,0 +1,236 @@
+[4096B]
+--boundary
+
+Content-Type: application/xml; charset="UTF-8"
+
+Content-Length: 549
+
+
+
+<EventNotificationAlert version="2.0" xmlns="http://www.hikvision.com/ver20/XMLSchema">
+
+<ipAddress>10.18.176.16</ipAddress>
+
+<ipv6Address>::</ipv6Address>
+
+<portNo>80</portNo>
+
+<protocol>HTTP</protocol>
+
+<macAddress>02:00:00:00:00:07</macAddress>
+
+<channelID>1</channelID>
+
+<dateTime>2026-09-27T08:18:49+08:00</dateTime>
+
+<activePostCount>1</activePostCount>
+
+<eventType>videoloss</eventType>
+
+<eventState>inactive</eventState>
+
+<eventDescription>videoloss alarm</eventDescription>
+
+<channelName>摄像机14</channelName>
+
+</EventNotificationAlert>
+
+--boundary
+
+Content-Type: application/xml; charset="UTF-8"
+
+Content-Length: 549
+
+
+
+<EventNotificationAlert version="2.0" xmlns="http://www.hikvision.com/ver20/XMLSchema">
+
+<ipAddress>10.18.176.16</ipAddress>
+
+<ipv6Address>::</ipv6Address>
+
+<portNo>80</portNo>
+
+<protocol>HTTP</protocol>
+
+<macAddress>02:00:00:00:00:07</macAddress>
+
+<channelID>1</channelID>
+
+<dateTime>2026-09-27T08:18:59+08:00</dateTime>
+
+<activePostCount>1</activePostCount>
+
+<eventType>videoloss</eventType>
+
+<eventState>inactive</eventState>
+
+<eventDescription>videoloss alarm</eventDescription>
+
+<channelName>摄像机14</channelName>
+
+</EventNotificationAlert>
+
+--boundary
+
+Content-Type: application/xml; charset="UTF-8"
+
+Content-Length: 549
+
+
+
+<EventNotificationAlert version="2.0" xmlns="http://www.hikvision.com/ver20/XMLSchema">
+
+<ipAddress>10.18.176.16</ipAddress>
+
+<ipv6Address>::</ipv6Address>
+
+<portNo>80</portNo>
+
+<protocol>HTTP</protocol>
+
+<macAddress>02:00:00:00:00:07</macAddress>
+
+<channelID>1</channelID>
+
+<dateTime>2026-09-27T08:19:09+08:00</dateTime>
+
+<activePostCount>1</activePostCount>
+
+<eventType>videoloss</eventType>
+
+<eventState>inactive</eventState>
+
+<eventDescription>videoloss alarm</eventDescription>
+
+<channelName>摄像机14</channelName>
+
+</EventNotificationAlert>
+
+--boundary
+
+Content-Type: application/xml; charset="UTF-8"
+
+Content-Length: 549
+
+
+
+<EventNotificationAlert version="2.0" xmlns="http://www.hikvision.com/ver20/XMLSchema">
+
+<ipAddress>10.18.176.16</ipAddress>
+
+<ipv6Address>::</ipv6Address>
+
+<portNo>80</portNo>
+
+<protocol>HTTP</protocol>
+
+<macAddress>02:00:00:00:00:07</macAddress>
+
+<channelID>1</channelID>
+
+<dateTime>2026-09-27T08:19:18+08:00</dateTime>
+
+<activePostCount>1</activePostCount>
+
+<eventType>videoloss</eventType>
+
+<eventState>inactive</eventState>
+
+<eventDescription>videoloss alarm</eventDescription>
+
+<channelName>摄像机14</channelName>
+
+</EventNotificationAlert>
+
+--boundary
+
+Content-Type: application/xml; charset="UTF-8"
+
+Content-Length: 549
+
+
+
+<EventNotificationAlert version="2.0" xmlns="http://www.hikvision.com/ver20/XMLSchema">
+
+<ipAddress>10.18.176.16</ipAddress>
+
+<ipv6Address>::</ipv6Address>
+
+<portNo>80</portNo>
+
+<protocol>HTTP</protocol>
+
+<macAddress>02:00:00:00:00:07</macAddress>
+
+<channelID>1</channelID>
+
+<dateTime>2004-05-05T22:37:46+08:00</dateTime>
+
+<activePostCount>1</activePostCount>
+
+<eventType>videoloss</eventType>
+
+<eventState>inactive</eventState>
+
+<eventDescription>videoloss alarm</eventDescription>
+
+<channelName>摄像机14</channelName>
+
+</EventNotificationAlert>
+
+--boundary
+
+Content-Type: application/xml; charset="UTF-8"
+
+Content-Length: 549
+
+
+
+<EventNotificationAlert version="2.0" xmlns="http://www.hikvision.com/ver20/XMLSchema">
+
+<ipAddress>10.18.176.16</ipAddress>
+
+<ipv6Address>::</ipv6Address>
+
+<portNo>80</portNo>
+
+<protocol>HTTP</protocol>
+
+<macAddress>02:00:00:00:00:07</macAddress>
+
+<channelID>1</channelID>
+
+<dateTime>2004-05-05T22:37:55+08:00</dateTime>
+
+<activePostCount>1</activePostCount>
+
+<eventType>videoloss</eventType>
+
+<eventState>inactive</eventState>
+
+<eventDescription>videoloss alarm</eventDescription>
+
+<channelName>摄像机14</channelName>
+
+</EventNotificationAlert>
+
+--boundary
+
+Content-Type: application/xml; charset="UTF-8"
+
+Content-Length: 549
+
+
+
+<EventNotificationAlert version="2.0" xmlns="http://www.hikvision.com/ver20/XMLSchema">
+
+<ipAddress>10.18.176.16</ipAddress>
+
+<ipv6Address>::</ipv6Address>
+
+<portNo>80</portNo>
+
+<protocol>HTTP</protocol>
+
+<macAddress>24:4

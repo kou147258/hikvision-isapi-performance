@@ -58,12 +58,19 @@ from custom_components.hikvision_isapi_performance.sensor import (  # noqa: E402
     _streaming_id_candidates,
 )
 
-CAPTURES = Path(r"C:\Users\43457\Desktop\hikvision-isapi\probe_captures")
+# v0.8: fixtures live INSIDE the repo (tests/fixtures_v08) and are
+# sanitized with the same mapping table used for every other v0.8 file.
+# They previously pointed at a hard-coded desktop capture directory
+# outside the repo — a data source that (a) isn't in version control, so
+# a fresh clone failed, and (b) was never sanitized, which is what broke
+# these two assertions after the sanitizing pass renamed the expected
+# camera names but not the XML they were read from.
+CAPTURES = _REPO_ROOT / "tests" / "fixtures_v08"
 
 
 def _root(prefix: str) -> ET.Element:
-    files = sorted(CAPTURES.glob(prefix + "__ISAPI_Streaming_channels__2*.xml"))
-    assert files, f"missing capture for {prefix}"
+    files = sorted(CAPTURES.glob(prefix + "__S_stream__ISAPI_Streaming_channels.xml"))
+    assert files, f"missing capture for {prefix} in {CAPTURES}"
     return ET.fromstring(
         _strip_xmlns(files[-1].read_text(encoding="utf-8", errors="replace"))
     )

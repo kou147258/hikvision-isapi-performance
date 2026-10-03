@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<DeviceStatus version="2.0">
+<currentDeviceTime>2026-09-27T08:24:59+08:00</currentDeviceTime>
+<deviceUpTime>315698</deviceUpTime>
+<CPUList>
+<CPU>
+<cpuDescription>ARMv7 Processor rev 1 (v7l)</cpuDescription>
+<cpuUtilization>2</cpuUtilization>
+</CPU>
+</CPUList>
+<MemoryList>
+<Memory>
+<memoryDescription>DDR Memory</memoryDescription>
+<memoryUsage>
+1117.457031</memoryUsage>
+<memoryAvailable>
+12.500000</memoryAvailable>
+</Memory>
+</MemoryList>
+</DeviceStatus>

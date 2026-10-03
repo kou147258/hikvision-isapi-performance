@@ -33,6 +33,9 @@ PLATFORMS: list[Platform] = [
     Platform.BINARY_SENSOR,
     Platform.SWITCH,
     Platform.BUTTON,
+    # v0.8: motion-detection sensitivity sliders. Must be listed here or
+    # number.py is never loaded and the platform silently does nothing.
+    Platform.NUMBER,
 ]
 
 
@@ -73,6 +76,42 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         name="hikvision_isapi_performance.first_refresh",
     )
 
+    # v0.8: start the alertStream push reader. Best-effort and fully
+    # independent of the poll cycle — it opens its own long-lived client
+    # and negotiates auth itself (176.18 only accepts Basic), so a push
+    # failure can never take the integration below its polling behaviour.
+    # Started here rather than in a platform because the task's lifetime
+    # belongs to the config entry, and ``coordinator.async_shutdown``
+    # (called on unload) is what stops it — no orphaned connection.
+    coordinator.async_start_event_stream()
+
+    # v0.8: probe per-channel motion-detection config ONCE, after the
+    # first refresh has populated ``channels``.
+    #
+    # This is not part of the poll cycle on purpose: motionDetection is
+    # configuration that rarely changes (11/12 fleet devices report
+    # sensitivityLevel=60), so polling it would add one request per
+    # channel per cycle — 13 extra requests every 30 s on an NVR. The
+    # result is cached and only re-read after a PUT.
+    #
+    # Deferred via a listener because platforms are forwarded BEFORE the
+    # first refresh runs, so ``coordinator.channels`` is still empty here.
+    # Without the deferral the probe would find no channels, mark itself
+    # done, and the motion switch / sensitivity slider would never appear
+    # — the same class of bug as the v0.7.3 dead listeners.
+    def _maybe_probe_motion_detection() -> None:
+        if getattr(coordinator, "_hikvision_isapi_performance_motion_probed", False):
+            return
+        if not coordinator.channels:
+            return
+        coordinator._hikvision_isapi_performance_motion_probed = True  # type: ignore[attr-defined]
+        hass.async_create_task(
+            coordinator.async_probe_motion_detection(),
+            name="hikvision_isapi_performance.motion_probe",
+        )
+
+    coordinator.async_add_listener(_maybe_probe_motion_detection)
+
     # Register the PTZ service if the device supports it. Capabilities
     # are populated by the first refresh — but we may not have them yet.
     # If we don't, defer to a one-shot listener that fires as soon as
@@ -100,11 +139,23 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
 
 async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
-    """Unload a config entry."""
+    """Unload a config entry.
+
+    v0.8: must stop the alertStream reader. ``DataUpdateCoordinator`` only
+    auto-registers its ``async_shutdown`` when ``config_entry`` is passed to
+    ``super().__init__``, and this integration constructs the coordinator
+    without it — so nothing else would ever call it. Without the explicit
+    call below, unloading (or reloading) the entry would leave the reader
+    task and its long-lived HTTP connection alive forever: a leaked
+    connection per unload, plus ghost tasks writing into a coordinator
+    nobody reads.
+    """
     unload_ok = await hass.config_entries.async_unload_platforms(entry, PLATFORMS)
     if unload_ok:
+        coordinator = hass.data[DOMAIN].pop(entry.entry_id, None)
+        if coordinator is not None:
+            await coordinator.async_shutdown()
         await async_unregister_ptz_service(hass)
-        hass.data[DOMAIN].pop(entry.entry_id, None)
     return unload_ok
 
 

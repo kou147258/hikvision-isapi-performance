@@ -46,6 +46,8 @@
       "cpu_usage": {"name": "CPU 使用率"},
       "memory_usage": {"name": "内存使用率"},
       "uptime": {"name": "运行时长"},
+      "last_boot_time": {"name": "上次启动时间"},
+      "hdd_error_count": {"name": "硬盘异常数"},
       "channel_count": {"name": "通道数"},
       "capability_video_input_channels": {"name": "能力 — 视频输入通道数"},
       "storage_total": {"name": "存储总量"},

@@ -1,0 +1,468 @@
+[8192B]
+--boundary
+
+Content-Type: application/xml; charset="UTF-8"
+
+Content-Length: 570
+
+
+
+<EventNotificationAlert version="2.0" xmlns="http://www.hikvision.com/ver20/XMLSchema">
+
+<ipAddress>10.18.176.52</ipAddress>
+
+<ipv6Address>::</ipv6Address>
+
+<portNo>80</portNo>
+
+<protocol>HTTP</protocol>
+
+<macAddress>02:00:00:00:00:08</macAddress>
+
+<channelID>1</channelID>
+
+<dateTime>2026-09-27T08:23:09+08:00</dateTime>
+
+<activePostCount>1</activePostCount>
+
+<eventType>videoloss</eventType>
+
+<eventState>inactive</eventState>
+
+<eventDescription>videoloss alarm</eventDescription>
+
+<channelName>摄像机02</channelName>
+
+</EventNotificationAlert>
+
+--boundary
+
+Content-Type: application/xml; charset="UTF-8"
+
+Content-Length: 616
+
+
+
+<?xml version="1.0" encoding="UTF-8"?>
+
+<EventNotificationAlert version="2.0" xmlns="http://www.hikvision.com/ver20/XMLSchema">
+
+<ipAddress>10.18.176.52</ipAddress>
+
+<ipv6Address>::ffff:10.18.176.52</ipv6Address>
+
+<portNo>80</portNo>
+
+<protocol>HTTP</protocol>
+
+<macAddress>02:00:00:00:00:08</macAddress>
+
+<channelID>1</channelID>
+
+<dateTime>2026-09-27T08:23:10+08:00</dateTime>
+
+<activePostCount>1</activePostCount>
+
+<eventType>VMD</eventType>
+
+<eventState>active</eventState>
+
+<eventDescription>Motion alarm</eventDescription>
+
+<channelName>摄像机02</channelName>
+
+</EventNotificationAlert>
+
+
+
+--boundary
+
+Content-Type: application/xml; charset="UTF-8"
+
+Content-Length: 616
+
+
+
+<?xml version="1.0" encoding="UTF-8"?>
+
+<EventNotificationAlert version="2.0" xmlns="http://www.hikvision.com/ver20/XMLSchema">
+
+<ipAddress>10.18.176.52</ipAddress>
+
+<ipv6Address>::ffff:10.18.176.52</ipv6Address>
+
+<portNo>80</portNo>
+
+<protocol>HTTP</protocol>
+
+<macAddress>02:00:00:00:00:08</macAddress>
+
+<channelID>1</channelID>
+
+<dateTime>2026-09-27T08:23:11+08:00</dateTime>
+
+<activePostCount>1</activePostCount>
+
+<eventType>VMD</eventType>
+
+<eventState>active</eventState>
+
+<eventDescription>Motion alarm</eventDescription>
+
+<channelName>摄像机02</channelName>
+
+</EventNotificationAlert>
+
+
+
+--boundary
+
+Content-Type: application/xml; charset="UTF-8"
+
+Content-Length: 616
+
+
+
+<?xml version="1.0" encoding="UTF-8"?>
+
+<EventNotificationAlert version="2.0" xmlns="http://www.hikvision.com/ver20/XMLSchema">
+
+<ipAddress>10.18.176.52</ipAddress>
+
+<ipv6Address>::ffff:10.18.176.52</ipv6Address>
+
+<portNo>80</portNo>
+
+<protocol>HTTP</protocol>
+
+<macAddress>02:00:00:00:00:08</macAddress>
+
+<channelID>1</channelID>
+
+<dateTime>2026-09-27T08:23:12+08:00</dateTime>
+
+<activePostCount>1</activePostCount>
+
+<eventType>VMD</eventType>
+
+<eventState>active</eventState>
+
+<eventDescription>Motion alarm</eventDescription>
+
+<channelName>摄像机02</channelName>
+
+</EventNotificationAlert>
+
+
+
+--boundary
+
+Content-Type: application/xml; charset="UTF-8"
+
+Content-Length: 616
+
+
+
+<?xml version="1.0" encoding="UTF-8"?>
+
+<EventNotificationAlert version="2.0" xmlns="http://www.hikvision.com/ver20/XMLSchema">
+
+<ipAddress>10.18.176.52</ipAddress>
+
+<ipv6Address>::ffff:10.18.176.52</ipv6Address>
+
+<portNo>80</portNo>
+
+<protocol>HTTP</protocol>
+
+<macAddress>02:00:00:00:00:08</macAddress>
+
+<channelID>1</channelID>
+
+<dateTime>2026-09-27T08:23:13+08:00</dateTime>
+
+<activePostCount>1</activePostCount>
+
+<eventType>VMD</eventType>
+
+<eventState>active</eventState>
+
+<eventDescription>Motion alarm</eventDescription>
+
+<channelName>摄像机02</channelName>
+
+</EventNotificationAlert>
+
+
+
+--boundary
+
+Content-Type: application/xml; charset="UTF-8"
+
+Content-Length: 616
+
+
+
+<?xml version="1.0" encoding="UTF-8"?>
+
+<EventNotificationAlert version="2.0" xmlns="http://www.hikvision.com/ver20/XMLSchema">
+
+<ipAddress>10.18.176.52</ipAddress>
+
+<ipv6Address>::ffff:10.18.176.52</ipv6Address>
+
+<portNo>80</portNo>
+
+<protocol>HTTP</protocol>
+
+<macAddress>02:00:00:00:00:08</macAddress>
+
+<channelID>1</channelID>
+
+<dateTime>2026-09-27T08:23:14+08:00</dateTime>
+
+<activePostCount>1</activePostCount>
+
+<eventType>VMD</eventType>
+
+<eventState>active</eventState>
+
+<eventDescription>Motion alarm</eventDescription>
+
+<channelName>摄像机02</channelName>
+
+</EventNotificationAlert>
+
+
+
+--boundary
+
+Content-Type: application/xml; charset="UTF-8"
+
+Content-Length: 616
+
+
+
+<?xml version="1.0" encoding="UTF-8"?>
+
+<EventNotificationAlert version="2.0" xmlns="http://www.hikvision.com/ver20/XMLSchema">
+
+<ipAddress>10.18.176.52</ipAddress>
+
+<ipv6Address>::ffff:10.18.176.52</ipv6Address>
+
+<portNo>80</portNo>
+
+<protocol>HTTP</protocol>
+
+<macAddress>02:00:00:00:00:08</macAddress>
+
+<channelID>1</channelID>
+
+<dateTime>2026-09-27T08:23:15+08:00</dateTime>
+
+<activePostCount>1</activePostCount>
+
+<eventType>VMD</eventType>
+
+<eventState>active</eventState>
+
+<eventDescription>Motion alarm</eventDescription>
+
+<channelName>摄像机02</channelName>
+
+</EventNotificationAlert>
+
+
+
+--boundary
+
+Content-Type: application/xml; charset="UTF-8"
+
+Content-Length: 616
+
+
+
+<?xml version="1.0" encoding="UTF-8"?>
+
+<EventNotificationAlert version="2.0" xmlns="http://www.hikvision.com/ver20/XMLSchema">
+
+<ipAddress>10.18.176.52</ipAddress>
+
+<ipv6Address>::ffff:10.18.176.52</ipv6Address>
+
+<portNo>80</portNo>
+
+<protocol>HTTP</protocol>
+
+<macAddress>02:00:00:00:00:08</macAddress>
+
+<channelID>1</channelID>
+
+<dateTime>2026-09-27T08:23:16+08:00</dateTime>
+
+<activePostCount>1</activePostCount>
+
+<eventType>VMD</eventType>
+
+<eventState>active</eventState>
+
+<eventDescription>Motion alarm</eventDescription>
+
+<channelName>摄像机02</channelName>
+
+</EventNotificationAlert>
+
+
+
+--boundary
+
+Content-Type: application/xml; charset="UTF-8"
+
+Content-Length: 616
+
+
+
+<?xml version="1.0" encoding="UTF-8"?>
+
+<EventNotificationAlert version="2.0" xmlns="http://www.hikvision.com/ver20/XMLSchema">
+
+<ipAddress>10.18.176.52</ipAddress>
+
+<ipv6Address>::ffff:10.18.176.52</ipv6Address>
+
+<portNo>80</portNo>
+
+<protocol>HTTP</protocol>
+
+<macAddress>02:00:00:00:00:08</macAddress>
+
+<channelID>1</channelID>
+
+<dateTime>2026-09-27T08:23:17+08:00</dateTime>
+
+<activePostCount>1</activePostCount>
+
+<eventType>VMD</eventType>
+
+<eventState>active</eventState>
+
+<eventDescription>Motion alarm</eventDescription>
+
+<channelName>摄像机02</channelName>
+
+</EventNotificationAlert>
+
+
+
+--boundary
+
+Content-Type: application/xml; charset="UTF-8"
+
+Content-Length: 616
+
+
+
+<?xml version="1.0" encoding="UTF-8"?>
+
+<EventNotificationAlert version="2.0" xmlns="http://www.hikvision.com/ver20/XMLSchema">
+
+<ipAddress>10.18.176.52</ipAddress>
+
+<ipv6Address>::ffff:10.18.176.52</ipv6Address>
+
+<portNo>80</portNo>
+
+<protocol>HTTP</protocol>
+
+<macAddress>02:00:00:00:00:08</macAddress>
+
+<channelID>1</channelID>
+
+<dateTime>2026-09-27T08:23:18+08:00</dateTime>
+
+<activePostCount>1</activePostCount>
+
+<eventType>VMD</eventType>
+
+<eventState>active</eventState>
+
+<eventDescription>Motion alarm</eventDescription>
+
+<channelName>摄像机02</channelName>
+
+</EventNotificationAlert>
+
+
+
+--boundary
+
+Content-Type: application/xml; charset="UTF-8"
+
+Content-Length: 616
+
+
+
+<?xml version="1.0" encoding="UTF-8"?>
+
+<EventNotificationAlert version="2.0" xmlns="http://www.hikvision.com/ver20/XMLSchema">
+
+<ipAddress>10.18.176.52</ipAddress>
+
+<ipv6Address>::ffff:10.18.176.52</ipv6Address>
+
+<portNo>80</portNo>
+
+<protocol>HTTP</protocol>
+
+<macAddress>02:00:00:00:00:08</macAddress>
+
+<channelID>1</channelID>
+
+<dateTime>2026-09-27T08:23:19+08:00</dateTime>
+
+<activePostCount>1</activePostCount>
+
+<eventType>VMD</eventType>
+
+<eventState>active</eventState>
+
+<eventDescription>Motion alarm</eventDescription>
+
+<channelName>摄像机02</channelName>
+
+</EventNotificationAlert>
+
+
+
+--boundary
+
+Content-Type: application/xml; charset="UTF-8"
+
+Content-Length: 570
+
+
+
+<EventNotificationAlert version="2.0" xmlns="http://www.hikvision.com/ver20/XMLSchema">
+
+<ipAddress>10.18.176.52</ipAddress>
+
+<ipv6Address>::</ipv6Address>
+
+<portNo>80</portNo>
+
+<protocol>HTTP</protocol>
+
+<macAddress>02:00:00:00:00:08</macAddress>
+
+<channelID>1</channelID>
+
+<dateTime>2026-09-27T08:23:20+08:00</dateTime>
+
+<activePostCount>1</activePostCount>
+
+<eventType>videoloss</eventType>
+
+<eventState>inactive</eventState>
+
+<eventDescriptio

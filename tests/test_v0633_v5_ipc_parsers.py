@@ -347,6 +347,8 @@ def test_v0633_storage_v5nvr_aggregate_still_works():
         "used_mb": 1234567,
         "free_mb": 765433,
         "status": "normal",
+        # v0.8: V5 aggregate shape has no per-disk list.
+        "hdds": [], "hdd_error_count": 0, "status_detail": [],
     }, result
 
 

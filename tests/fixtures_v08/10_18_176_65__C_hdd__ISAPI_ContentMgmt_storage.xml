@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<storage version="1.0">
+<hddList>
+<hdd version="1.0">
+<id>1</id>
+<hddName>hdd1</hddName>
+<hddPath></hddPath>
+<hddType>SATA</hddType>
+<status>ok</status>
+<capacity>953869</capacity>
+<freeSpace>0</freeSpace>
+<property>RW</property>
+</hdd>
+</hddList>
+<nasList>
+</nasList>
+<workMode>quota</workMode>
+</storage>

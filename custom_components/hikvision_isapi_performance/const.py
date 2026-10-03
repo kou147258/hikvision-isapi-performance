@@ -92,6 +92,27 @@ ISAPI_EVENT_ALERT_STREAM: Final = (
     "/ISAPI/Event/notification/alertStream"
 )
 
+# v0.8: recording-segment search. POST a CMSearchDescription, get back
+# CMSearchResult with <searchMatchItem> per recording segment. This is
+# the ONLY endpoint on the fleet that reports real per-channel recording
+# activity — ``/ContentMgmt/Recording/channels/{i}/status`` returns
+# 403/404 on all 12 devices. See capabilities.build_search_body for the
+# request shape and derive_recording_status for the interpretation.
+ISAPI_CONTENT_MGMT_SEARCH: Final = "/ISAPI/ContentMgmt/search"
+
+# v0.8: per-channel motion-detection configuration. GET returns
+# <enabled> plus <sensitivityLevel> (nested under MotionDetectionLayout on
+# the fleet's firmware, flat on some variants); PUT writes it back.
+# 11/12 devices support it — 176.65 (DS-7708N-I4 V4.1.18) returns 403,
+# so it is probed once and then skipped instead of retried every poll.
+#
+# NOTE: this is the only endpoint the integration *writes configuration*
+# to besides the existing recording switch and reboot button. The motion
+# switch / sensitivity number are therefore opt-in entities.
+ISAPI_SYSTEM_VIDEO_INPUTS_CHANNELS_MOTION_DETECTION: Final = (
+    "/ISAPI/System/Video/inputs/channels/{id}/motionDetection"
+)
+
 # PTZ
 ISAPI_PTZ_CTRL_CHANNELS: Final = "/ISAPI/PTZCtrl/channels"
 

@@ -37,7 +37,7 @@ The data shape is::
 from __future__ import annotations
 
 import logging
-from datetime import timedelta
+from datetime import datetime, timedelta
 from typing import Any
 from xml.etree import ElementTree as ET
 
@@ -55,6 +55,7 @@ from .const import (
     DEVICE_TYPE_IPCAMERA,
     DEVICE_TYPE_NETWORK_VIDEO_RECORDER,
     DOMAIN,
+    ISAPI_CONTENT_MGMT_SEARCH,
     ISAPI_CONTENT_MGMT_STORAGE,
     ISAPI_INPUT_PROXY_CHANNELS,
     ISAPI_INPUT_PROXY_CHANNELS_STATUS,
@@ -66,7 +67,10 @@ from .const import (
     ISAPI_SYSTEM_STATUS,
     ISAPI_SYSTEM_STORAGE_HARDDISKS,
     ISAPI_SYSTEM_TIME,
+    ISAPI_SYSTEM_VIDEO_INPUTS_CHANNELS_MOTION_DETECTION,
 )
+from . import capabilities as _caps
+from . import dedup as _dedup
 from .isapi_client import ISAPIAuthError, ISAPIConnectionError, ISAPIClient, ISAPIError
 
 _LOGGER = logging.getLogger(__name__)
@@ -406,6 +410,108 @@ def _tri_record_status(value: str | None) -> bool | None:
     return s == "recording"
 
 
+def _tri_online(value: str | None) -> bool | None:
+    """Map an ``<online>`` XML value to True / False / None.
+
+    v0.8: the same tri-state reasoning as ``_tri_record_status``, applied
+    to ``online``. ``None`` means "the device never reported this".
+
+    Real-fleet evidence (probe_status_id.py / probe_online_field.py,
+    12 devices, 2026-10-04):
+
+    * IPC ``/ISAPI/Streaming/channels/{id}/status`` does **not** return a
+      channel status. It returns ``StreamingSessionStatusList`` — the list
+      of active streaming sessions with client IP addresses — and carries
+      **no ``<online>`` element at all**.
+    * Meanwhile ``/ISAPI/Streaming/channels`` reports
+      ``<enabled>true</enabled>`` for every stream of those same IPCs
+      (176.10: streams 101/102/103 all enabled=true).
+
+    Pre-v0.8 the parser returned ``False`` for the missing field and the
+    coordinator merged it unconditionally, so every healthy, actively
+    streaming IPC displayed "离线". This is exactly the defect shape that
+    v0.7.4 fixed for ``recording`` (a missing field coerced into a false
+    negative); ``online`` had simply been missed.
+
+    Side note: that session list is a genuinely useful *other* signal
+    (active stream count + client IPs) which this integration does not yet
+    expose. Parsed but currently unused; kept out of scope for this fix.
+    """
+    if value is None:
+        return None
+    s = value.strip().lower()
+    if not s:
+        return None
+    return s == "true"
+
+
+def _merge_channel_status(
+    ch: dict[str, Any],
+    ch_status: dict[str, Any],
+) -> None:
+    """Merge per-channel status into a channel dict, in place.
+
+    Extracted from ``_async_update_data`` in v0.8 so the merge rules are
+    unit-testable — previously they lived inline in a 400-line refresh
+    method where no test could reach them, which is exactly how the
+    ``online`` regression stayed hidden.
+
+    Rules (``None`` = "this endpoint never reported the field"):
+
+    * ``online`` / ``recording`` — override only on an explicit
+      True/False. A ``None`` must not clobber a value the channel list
+      already supplied. This preserves the v0.6.12 intent (an explicit
+      ``online=false`` from the fresher endpoint DOES override a stale
+      ``True`` from the list) while fixing the v0.8 bug (an absent field
+      must not fabricate a false negative).
+    * ``recording`` — if neither source reported it, record ``None``
+      explicitly so the entity renders unknown rather than falling
+      through to a ``False`` default (v0.7.4 behaviour).
+    * ``motion_detected`` and the extended health fields — only written
+      when present, so an endpoint that omits them cannot erase data.
+    """
+    online = ch_status.get("online")
+    if online is not None:
+        ch["online"] = online
+
+    recording = ch_status.get("recording")
+    if recording is not None:
+        ch["recording"] = recording
+    elif "recording" not in ch:
+        ch["recording"] = None
+
+    # motion_detected is tri-state now (v0.8). The motion binary sensor
+    # treats "key absent" as unknown, so a None must NOT be written — that
+    # would make bool(None) render "off" (a false negative) instead of
+    # unknown. Same reasoning as online/recording above.
+    motion = ch_status.get("motion_detected")
+    if motion is not None:
+        ch["motion_detected"] = motion
+
+    for k in (
+        "uptime",
+        "reboot_count",
+        "sd_card_writes",
+        "camera_run_total_time",
+        "dome_heat_state",
+        "dome_fan_state",
+        "dome_runtime_over_40",
+    ):
+        v = ch_status.get(k)
+        if v is not None:
+            ch[k] = v
+
+    # v0.8: streaming-session count. Written only when the status response
+    # really was a StreamingSessionStatusList (None otherwise). ``0`` is a
+    # genuine reading — "nobody is pulling this stream right now" — so the
+    # ``is not None`` test is what keeps it, while NVR/DVR channels (whose
+    # status endpoint returns InputProxyChannelStatus) get no key at all and
+    # therefore no permanently-empty sensor.
+    sessions = ch_status.get("streaming_sessions")
+    if sessions is not None:
+        ch["streaming_sessions"] = sessions
+
+
 def _parse_channels(root: ET.Element | None) -> list[dict[str, Any]]:
     """Parse ``/ISAPI/ContentMgmt/InputProxy/channels`` response.
 
@@ -416,9 +522,25 @@ def _parse_channels(root: ET.Element | None) -> list[dict[str, Any]]:
             <id>1</id>
             <name>Camera 1</name>
             <online>true</online>
+            <sourceInputPortDescriptor>
+              <ipAddress>10.18.176.10</ipAddress>
+              <serialNumber>DS-2DF8C832MX-ZDK2025...</serialNumber>
+            </sourceInputPortDescriptor>
             ...
           </InputProxyChannel>
         </InputProxyChannelList>
+
+    v0.8 also captures ``serial_number`` and ``source_ip`` for
+    cross-entry duplicate detection (see ``dedup.py``). Both are needed
+    because firmware support differs: 176.64 reports serials for all 13
+    channels, while 176.65 (DS-7708N-I4 V4.1.18) reports an **empty**
+    ``serialNumber`` on every channel and can only be matched by IP.
+
+    Note the open tag may carry attributes (``<InputProxyChannel
+    version="1.0">`` on 176.65 / 192.168.10.17); ``findall`` matches by
+    tag name so both forms are found. The list's own ``size`` attribute
+    is NOT trusted — 176.64 declares size=19 with 13 real channels and
+    176.65 declares size=0 with 8.
     """
     if root is None:
         return []
@@ -427,6 +549,20 @@ def _parse_channels(root: ET.Element | None) -> list[dict[str, Any]]:
         ch_id = _xml_text(ch, "id") or ""
         if not ch_id:
             continue
+        # Identity fields live under <sourceInputPortDescriptor> on the
+        # fleet; fall back to a subtree search for firmwares that flatten
+        # them onto the channel element.
+        descriptor = ch.find("sourceInputPortDescriptor")
+        serial = (
+            _xml_text(descriptor, "serialNumber")
+            or _xml_text(ch, ".//serialNumber")
+            or ""
+        )
+        source_ip = (
+            _xml_text(descriptor, "ipAddress")
+            or _xml_text(ch, ".//ipAddress")
+            or ""
+        )
         out.append(
             {
                 "id": ch_id,
@@ -437,6 +573,9 @@ def _parse_channels(root: ET.Element | None) -> list[dict[str, Any]]:
                 # "录像中: 未在运行" despite no data source — see
                 # _tri_record_status.
                 "recording": _tri_record_status(_xml_text(ch, "recordStatus")),
+                # v0.8: cross-entry dedup identity.
+                "serial_number": (serial or "").strip(),
+                "source_ip": (source_ip or "").strip(),
             }
         )
     return out
@@ -634,15 +773,48 @@ def _parse_storage(root: ET.Element | None) -> dict[str, Any]:
 
     The parser auto-detects per-HDD: a hit on ``<size>`` means
     V4 (BYTES); only ``<capacity>`` hits means V5 IPC (MB).
+
+    **v0.8 — per-HDD health (real-fleet fix)**
+
+    ``<status>`` carries more values than the old ``("normal", "ok")``
+    whitelist allowed. Probed on the live fleet:
+
+        176.64 (DS-8632N-I8, 5 bays)::
+
+            hdd1=ok  hdd2=ok  hdd3=notexist  hdd4=ok  hdd5=ok
+
+    ``notexist`` is an **empty bay** and ``idle`` is a **spare/standby
+    disk** (observed as ``idle`` on DS-8632N-I8 hdd5 in earlier
+    captures). Neither is a fault, yet the old aggregate logic
+    (``status not in ("normal", "ok") -> exception``) flagged the whole
+    device as an exception — the user saw a storage alarm on a machine
+    with three healthy disks and one empty bay.
+
+    v0.8 therefore:
+      * skips ``notexist`` bays entirely (no capacity, no entity)
+      * treats ``{ok, normal, idle, unformatted}`` as healthy
+      * reports any other value as an exception AND keeps the raw value
+        in ``status_detail`` so the user can see *what* is wrong
+      * returns ``hdds`` (per-disk detail) and ``hdd_error_count``
     """
     empty = {
         "total_mb": None,
         "used_mb": None,
         "free_mb": None,
         "status": "unknown",
+        # v0.8: per-disk detail + fault count. Always present so
+        # callers can use ``.get`` without branching on firmware shape.
+        "hdds": [],
+        "hdd_error_count": 0,
+        "status_detail": [],
     }
     if root is None:
         return empty
+
+    # v0.8: healthy per-disk states. ``notexist`` is handled separately
+    # (the bay is skipped rather than counted as healthy).
+    _HEALTHY = ("ok", "normal", "idle", "unformatted")
+    _ABSENT = "notexist"
 
     # V5 path: direct fields.
     total_mb = _safe_int_mb(_xml_text(root, "totalCapacity"))
@@ -651,12 +823,15 @@ def _parse_storage(root: ET.Element | None) -> dict[str, Any]:
     status = _xml_text(root, "status")
 
     if total_mb is not None or used_mb is not None or free_mb is not None:
-        # V5 shape — done.
+        # V5 shape — done. No per-disk list in this shape.
         return {
             "total_mb": total_mb,
             "used_mb": used_mb,
             "free_mb": free_mb,
             "status": status or "unknown",
+            "hdds": [],
+            "hdd_error_count": 0,
+            "status_detail": [],
         }
 
     # V4 NVR + V5 IPC fallback: per-HDD list.
@@ -674,6 +849,16 @@ def _parse_storage(root: ET.Element | None) -> dict[str, Any]:
     status_aggregate = "normal"
     seen = False
     is_bytes = False  # detected per-loop; once True stays True
+    per_hdd: list[dict[str, Any]] = []
+    error_count = 0
+    status_detail: list[str] = []
+
+    def _units(raw: int | None) -> float | None:
+        """Convert a raw unit value to MB once the shape is known."""
+        if raw is None:
+            return None
+        return round(raw / 1_000_000, 1) if is_bytes else round(raw, 1)
+
     for hdd in hdds:
         # Prefer V4 uppercase tags first; fall back to V5 IPC
         # lowercase tags. Detection of unit: if <size> is hit first,
@@ -687,6 +872,16 @@ def _parse_storage(root: ET.Element | None) -> dict[str, Any]:
         free_raw = _safe_int_mb(_xml_text(hdd, "freeSize"))
         if free_raw is None:
             free_raw = _safe_int_mb(_xml_text(hdd, "freeSpace"))
+
+        # V4 NVR uses ``<status>normal</status>``/``error``/etc.
+        # V5 IPC uses ``<status>ok</status>``/``idle``/etc.
+        hdd_status = (_xml_text(hdd, "status") or "").strip().lower()
+
+        # v0.8: an empty bay is not a disk. Skip it entirely so it
+        # contributes no capacity, no entity and no fault.
+        if hdd_status == _ABSENT:
+            continue
+
         if size_raw is None and free_raw is None:
             continue
         seen = True
@@ -694,11 +889,20 @@ def _parse_storage(root: ET.Element | None) -> dict[str, Any]:
             total_units += size_raw
         if free_raw is not None:
             free_units += free_raw
-        # V4 NVR uses ``<status>normal</status>``/``error``/etc.
-        # V5 IPC uses ``<status>ok</status>``/``error``/etc.
-        hdd_status = _xml_text(hdd, "status") or ""
-        if hdd_status and hdd_status not in ("normal", "ok"):
+
+        if hdd_status and hdd_status not in _HEALTHY:
             status_aggregate = "exception"
+            error_count += 1
+            status_detail.append(hdd_status)
+
+        per_hdd.append({
+            "id": _xml_text(hdd, "id") or "",
+            "name": _xml_text(hdd, "hddName") or "",
+            "type": _xml_text(hdd, "hddType") or "",
+            "status": hdd_status or "unknown",
+            "capacity_mb": _units(size_raw),
+            "free_mb": _units(free_raw),
+        })
 
     if not seen:
         return empty
@@ -736,6 +940,9 @@ def _parse_storage(root: ET.Element | None) -> dict[str, Any]:
         "used_mb": used_mb,
         "free_mb": free_mb,
         "status": status_aggregate,
+        "hdds": per_hdd,
+        "hdd_error_count": error_count,
+        "status_detail": status_detail,
     }
 
 
@@ -1103,19 +1310,21 @@ def _parse_channel_status(
     """
     if root is None:
         return {
-            "online": False,
+            "online": None,
             "recording": None,
-            "motion_detected": False,
+            "motion_detected": None,
         }
     return {
-        "online": (_xml_text(root, "online") or "").lower() == "true",
+        # v0.8: tri-state — a missing <online> is None ("not reported"),
+        # not False. See _tri_online for the IPC session-list evidence.
+        "online": _tri_online(_xml_text(root, "online")),
         # v0.7.4: None when <recordStatus> is absent — see
         # _tri_record_status. Was False, which reported a false
         # "not recording" on NVRs that never carry this field.
         "recording": _tri_record_status(_xml_text(root, "recordStatus")),
-        "motion_detected": (
-            _xml_text(root, "motionDetection") or ""
-        ).lower() == "true",
+        # v0.8: tri-state for the same reason as online. The IPC session
+        # list carries no <motionDetection> either.
+        "motion_detected": _tri_online(_xml_text(root, "motionDetection")),
     }
 
 
@@ -1144,11 +1353,11 @@ def _parse_channel_status_extended(
     """
     if root is None:
         return {
-            "online": False,
+            "online": None,
             # v0.7.4: None, not False — no XML means the device told us
             # nothing, which must not render as "未在运行".
             "recording": None,
-            "motion_detected": False,
+            "motion_detected": None,
             "uptime": None,
             "reboot_count": None,
             "sd_card_writes": None,
@@ -1161,15 +1370,16 @@ def _parse_channel_status_extended(
     camera = root.find(".//Camera")
     sdcard = root.find(".//SDCardStatusInfo")
     return {
-        "online": (_xml_text(root, "online") or "").lower() == "true",
+        # v0.8: tri-state. See _tri_online — IPC /Streaming/channels/{id}/
+        # status returns a session list with no <online> at all.
+        "online": _tri_online(_xml_text(root, "online")),
         # v0.7.4: None when <recordStatus> is absent — see
         # _tri_record_status. Probed on DS-7708N-I4 / DS-8632N-I8: the
         # per-channel status response carries <online> but no
         # <recordStatus>, so False here was a fabricated "not recording".
         "recording": _tri_record_status(_xml_text(root, "recordStatus")),
-        "motion_detected": (
-            _xml_text(root, "motionDetection") or ""
-        ).lower() == "true",
+        # v0.8: tri-state for the same reason as online.
+        "motion_detected": _tri_online(_xml_text(root, "motionDetection")),
         "uptime": _xml_text(root, "deviceUpTime") or _xml_text(root, "uptime"),
         "reboot_count": _xml_text(root, "totalRebootCount"),
         "sd_card_writes": (
@@ -1187,6 +1397,15 @@ def _parse_channel_status_extended(
         "dome_runtime_over_40": (
             _xml_text(dome, "runtimeOverPositiveforty") if dome is not None else None
         ),
+        # v0.8: active streaming sessions. IPCs answer this same status
+        # endpoint with a StreamingSessionStatusList (no <online> at all,
+        # which is what caused the "every IPC shows offline" bug above).
+        # That list is the only session-count source on the fleet — the
+        # device-level /Streaming/sessions endpoint fails on 12/12.
+        # NVR/DVR answer with InputProxyChannelStatus, so this is None
+        # there and no session sensor is created (0 would be a lie: they
+        # don't report sessions at all, they don't have zero of them).
+        "streaming_sessions": _caps.parse_streaming_sessions(root),
     }
 
 
@@ -1228,6 +1447,7 @@ class HikvisionISAPIData:
         streaming_channel_detail: dict[str, Any] | None = None,
         time_info: dict[str, str | None] | None = None,
         system_capabilities: dict[str, Any] | None = None,
+        recording_status: dict[str, Any] | None = None,
     ) -> None:
         self.device_info = device_info
         # Normalized device type: "ipcamera" / "networkvideorecorder" /
@@ -1255,6 +1475,14 @@ class HikvisionISAPIData:
         # (int|None), ``device_types`` (list[str]), ``ethernet_interfaces``
         # (int|None). Empty dict when the endpoint isn't reachable.
         self.system_capabilities = system_capabilities or {}
+        # v0.8: per-channel recording activity derived from
+        # ``/ISAPI/ContentMgmt/search`` segments. Shape:
+        # ``{channel_id: {recording_active, last_recording_time,
+        # codec_type, record_type}}``. Empty dict when the device has no
+        # recording-search endpoint (IPCs, older firmwares) or no
+        # recordings — in which case no recording entities are created.
+        # This is a *derived* value: see capabilities.derive_recording_status.
+        self.recording_status = recording_status or {}
 
 
 class HikvisionISAPICoordinator(DataUpdateCoordinator[HikvisionISAPIData]):
@@ -1284,6 +1512,13 @@ class HikvisionISAPICoordinator(DataUpdateCoordinator[HikvisionISAPIData]):
             name=f"{DOMAIN}_{host}",
             update_interval=timedelta(seconds=scan_interval),
         )
+        # v0.8: kept for cross-entry dedup, which needs both this entry's
+        # id (to exclude itself from "other entries") and the entry object
+        # (to write the device identity back into ``entry.data``).
+        # ``entry_id_hint`` already read ``coordinator.entry_id``
+        # defensively, but nothing ever set it — it always logged "?".
+        self.entry = entry
+        self.entry_id = getattr(entry, "entry_id", "") or ""
         self._host = host
         self._port = port
         self._username = username
@@ -1308,6 +1543,45 @@ class HikvisionISAPICoordinator(DataUpdateCoordinator[HikvisionISAPIData]):
         # ``_async_update_data`` after the first parse, but
         # platforms need a default for their filter logic.
         self.device_type: str = ""
+        # v0.8: alertStream push state. ``event_state`` maps
+        # ``sensor_key -> {channel_id: bool}`` for the event types the
+        # device actually pushes (motion / video_loss / tamper), and
+        # ``event_meta`` keeps the last channel name + timestamp per
+        # channel for the event-bus payload. Both are written only from
+        # the reader task, on the event loop, so no lock is needed.
+        self.event_state: dict[str, dict[str, bool]] = {}
+        self.event_meta: dict[str, dict[str, Any]] = {}
+        self.event_types_seen: set[str] = set()
+        self._event_reader: Any = None
+        self._event_task: Any = None
+        # v0.8: per-channel motion-detection CONFIG cache, keyed by
+        # channel id -> {enabled, sensitivity_level, _raw_xml}.
+        #
+        # This is deliberately NOT part of the 30 s poll. motionDetection
+        # is a configuration value that rarely changes (11/12 fleet
+        # devices report sensitivityLevel=60), so polling it per refresh
+        # would add ``len(channels)`` extra requests every cycle — 13 on
+        # an 8/16/32-channel NVR. Instead it is probed once after setup
+        # and refreshed only after a PUT (see the switch / number
+        # platforms). Storing the raw XML lets a write-back preserve the
+        # user's detection gridMap instead of clobbering it.
+        self.motion_detection: dict[str, dict[str, Any]] = {}
+        self._motion_probe_done = False
+        # v0.8: cross-entry duplicate detection (see dedup.py). Channel
+        # ids on THIS device whose hardware is also configured as its own
+        # entry — probed on the fleet: 9 of NVR 176.64's 13 channels have
+        # serialNumbers identical to 9 separately-added IPCs. Platforms
+        # register those channels' entities with
+        # ``entity_registry_enabled_default=False`` so one camera does not
+        # produce two full entity sets. Empty set when the user has only
+        # added one side.
+        self.duplicate_channels: set[str] = set()
+        self._identity_published = False
+        self._dedup_applied_signature: Any = None
+        # NOTE: ``self.entry`` / ``self.entry_id`` are assigned at the top
+        # of this constructor (next to ``self._host``). Do not re-set them
+        # to None here — an earlier draft did, which made
+        # ``publish_identity`` no-op and silently disabled all dedup.
 
     @property
     def host(self) -> str:
@@ -1323,6 +1597,314 @@ class HikvisionISAPICoordinator(DataUpdateCoordinator[HikvisionISAPIData]):
             use_https=self._use_https,
             timeout=DEFAULT_REQUEST_TIMEOUT,
         )
+
+    # ---- v0.8: alertStream push events ----
+
+    def async_start_event_stream(self) -> None:
+        """Start the alertStream reader task (idempotent).
+
+        Called from ``__init__.async_setup_entry`` after platforms are
+        forwarded. The reader is best-effort: if the device doesn't serve
+        alertStream, it backs off and retries — polling continues to work
+        regardless, so a push failure never degrades the integration below
+        its v0.7 behaviour.
+
+        Events land in ``self.event_state`` (consumed by the binary
+        sensors) and are re-published to HA's event bus for automations.
+        """
+        if self._event_task is not None and not self._event_task.done():
+            return
+
+        from .event_stream import AlertStreamReader
+
+        def _factory() -> ISAPIClient:
+            client = self._make_client()
+            # The reader owns a long-lived connection, so it opens the
+            # httpx client via the public ``open()`` rather than relying on
+            # a per-request ``async with`` block. This also keeps
+            # coordinator.py free of any httpx import or client privates.
+            client.open()
+            return client
+
+        self._event_reader = AlertStreamReader(
+            client_factory=_factory,
+            on_event=self._on_stream_event,
+        )
+        self._event_task = self.hass.async_create_task(
+            self._event_reader.run(),
+            name=f"hikvision_isapi_performance.alertstream.{self._host}",
+        )
+        _LOGGER.info("%s alertStream reader started", self._host)
+
+    def _on_stream_event(self, ev: Any) -> None:
+        """Handle one parsed alertStream event.
+
+        Runs on the event loop (the reader is an asyncio task), so plain
+        dict mutation is safe without a lock.
+        """
+        key = _caps.event_types_to_sensor_keys({ev.event_type})
+        if not key:
+            # An event type we don't model (diskfull, ipconflict, …).
+            # Still recorded for diagnostics + the event bus, but it drives
+            # no binary sensor.
+            sensor_key = None
+        else:
+            sensor_key = next(iter(key))
+
+        active = (ev.event_state or "").strip().lower() == "active"
+
+        if sensor_key is not None:
+            by_channel = self.event_state.setdefault(sensor_key, {})
+            ch = ev.channel_id or "0"
+            if by_channel.get(ch) != active:
+                by_channel[ch] = active
+                # Only wake listeners on a real transition, so a
+                # fire-hose device (176.10 pushed 2.25 MB in 8 s) can't
+                # thrash entity state updates.
+                self.async_update_listeners()
+
+        self.event_types_seen.add(ev.event_type)
+        self.event_meta[ev.channel_id or "0"] = {
+            "channel_name": ev.channel_name,
+            "date_time": ev.date_time,
+            "event_type": ev.event_type,
+            "event_state": ev.event_state,
+        }
+
+        # Publish to HA's event bus so automations can react without
+        # needing a binary sensor per event type.
+        try:
+            self.hass.bus.async_fire(
+                f"{DOMAIN}_event",
+                {
+                    "host": self._host,
+                    "channel_id": ev.channel_id,
+                    "dyn_channel_id": ev.dyn_channel_id,
+                    "channel_name": ev.channel_name,
+                    "event_type": ev.event_type,
+                    "event_state": ev.event_state,
+                    "date_time": ev.date_time,
+                    "active_post_count": ev.active_post_count,
+                },
+            )
+        except Exception as exc:  # noqa: BLE001 - bus is best-effort
+            _LOGGER.debug("%s event bus fire failed: %s", self._host, exc)
+
+    async def async_shutdown(self) -> None:
+        """Stop the alertStream reader, then run the base shutdown.
+
+        HA calls this when the config entry is unloaded. Without it the
+        reader task and its httpx connection would outlive the entry.
+        """
+        reader, task = self._event_reader, self._event_task
+        self._event_reader = None
+        self._event_task = None
+        if reader is not None:
+            try:
+                await reader.stop(task)
+            except Exception as exc:  # noqa: BLE001 - shutdown must not raise
+                _LOGGER.debug("%s alertStream stop failed: %s", self._host, exc)
+        await super().async_shutdown()
+
+    # ---- v0.8: motion-detection config (probe-once, not polled) ----
+
+    async def async_probe_motion_detection(self) -> None:
+        """Probe per-channel motionDetection config once.
+
+        Called from ``__init__`` as a background task after the first
+        refresh (so ``self.channels`` is populated). Deliberately not part
+        of ``_async_update_data``: it is configuration that rarely changes,
+        and polling it would add ``len(channels)`` requests to every 30 s
+        cycle.
+
+        Capability-gated by outcome: a device that 403s (176.65 /
+        DS-7708N-I4 V4.1.18) simply gets no entry, so the switch and
+        sensitivity entities are never created for it. The raw XML is kept
+        per channel so that writing ``enabled`` / ``sensitivityLevel`` back
+        preserves the user's detection gridMap instead of clobbering it.
+        """
+        if self._motion_probe_done:
+            return
+        self._motion_probe_done = True
+
+        channel_ids = [
+            str(ch.get("id", "")).strip()
+            for ch in self.channels
+            if str(ch.get("id", "")).strip()
+        ]
+        if not channel_ids:
+            return
+
+        try:
+            async with self._make_client() as client:
+                for cid in channel_ids:
+                    await self._probe_motion_channel(client, cid)
+        except (ISAPIError, ISAPIAuthError, ISAPIConnectionError) as exc:
+            _LOGGER.info(
+                "%s motion-detection probe aborted (%s)", self._host, exc
+            )
+
+        if self.motion_detection:
+            # Wake platforms so the switch / number entities register.
+            self.async_update_listeners()
+            _LOGGER.info(
+                "%s motion-detection config probed for %d/%d channel(s)",
+                self._host, len(self.motion_detection), len(channel_ids),
+            )
+
+    async def _probe_motion_channel(
+        self, client: ISAPIClient, channel_id: str
+    ) -> None:
+        """Fetch + cache motionDetection for one channel. Silent on 4xx."""
+        path = ISAPI_SYSTEM_VIDEO_INPUTS_CHANNELS_MOTION_DETECTION.format(
+            id=channel_id
+        )
+        try:
+            root = await client.get_xml(path)
+        except (ISAPIError, ISAPIAuthError, ISAPIConnectionError) as exc:
+            # 403 on 176.65, 404 on firmwares without the endpoint. Not a
+            # warning: half the fleet legitimately lacks it.
+            _LOGGER.debug(
+                "%s motionDetection ch %s unavailable: %s",
+                self._host, channel_id, exc,
+            )
+            return
+
+        parsed = _caps.parse_motion_detection(root)
+        if parsed is None:
+            return
+        # Keep the raw document so a later PUT can preserve gridMap /
+        # samplingInterval / trigger times that this integration does not
+        # model but must not destroy.
+        try:
+            raw = ET.tostring(root, encoding="unicode")
+        except Exception:  # noqa: BLE001 - raw is best-effort
+            raw = ""
+        parsed["_raw_xml"] = raw
+        self.motion_detection[channel_id] = parsed
+
+    async def async_refresh_motion_detection(
+        self, channel_id: str | None = None
+    ) -> None:
+        """Re-read motionDetection config after a PUT, then wake platforms.
+
+        The switch and number entities call this so their displayed value
+        reflects what the device actually accepted rather than the
+        optimistic guess. Re-reading also refreshes ``_raw_xml``, which is
+        what the next PUT will use as its base document — skipping this
+        would mean a later write is built from a stale document and could
+        revert an out-of-band change the user made in the camera's own web
+        UI.
+
+        ``channel_id=None`` re-probes every known channel.
+        """
+        ids = (
+            [str(channel_id)] if channel_id is not None
+            else list(self.motion_detection)
+        )
+        if not ids:
+            return
+        try:
+            async with self._make_client() as client:
+                for cid in ids:
+                    await self._probe_motion_channel(client, cid)
+        except (ISAPIError, ISAPIAuthError, ISAPIConnectionError) as exc:
+            _LOGGER.debug(
+                "%s motion-detection readback failed: %s", self._host, exc
+            )
+            return
+        self.async_update_listeners()
+
+    # ---- v0.8: cross-entry duplicate detection ----
+
+    def publish_identity(self) -> None:
+        """Write this device's serial number into the config entry.
+
+        Other entries read it back via ``dedup.collect_other_identities``
+        to recognise that an NVR channel and a separately-added IPC are
+        the same camera. Without publishing, dedup can never match — the
+        NVR would have nothing to compare its channels against.
+
+        No-ops until ``deviceInfo`` has actually been parsed: writing an
+        empty serial would clobber a previously recorded identity and
+        silently break dedup on the next refresh.
+        """
+        if self._identity_published or self.entry is None:
+            return
+        serial = str((self.device_info or {}).get("serialNumber") or "").strip()
+        if not serial:
+            return
+        try:
+            self.hass.config_entries.async_update_entry(
+                self.entry,
+                data={
+                    **self.entry.data,
+                    "identity_serial": serial,
+                    "identity_model": str(
+                        (self.device_info or {}).get("model") or ""
+                    ).strip(),
+                },
+            )
+        except Exception as exc:  # noqa: BLE001 - dedup is best-effort
+            _LOGGER.debug(
+                "%s could not publish identity to config entry: %s",
+                self._host, exc,
+            )
+            return
+        self._identity_published = True
+        _LOGGER.debug("%s published device identity for dedup", self._host)
+
+    def apply_dedup(self) -> None:
+        """Recompute ``duplicate_channels`` and wake platforms if it changed.
+
+        Called after each refresh (channels and other entries' identities
+        can both appear late). Wake listeners only when the result actually
+        changes — this runs every 30 s, and re-firing on an unchanged set
+        would churn every entity on every poll.
+        """
+        self.publish_identity()
+
+        others = _dedup.collect_other_identities(self.hass, self.entry_id)
+        duplicates = _dedup.find_duplicate_channels(self.channels, others)
+
+        # Signature covers both inputs: our channels and the identities we
+        # matched against. Either changing must re-evaluate.
+        signature = (
+            tuple(sorted(duplicates)),
+            tuple(sorted((o.get("serial_number"), o.get("host")) for o in others)),
+            tuple(sorted(str(c.get("id", "")) for c in self.channels)),
+        )
+        if signature == self._dedup_applied_signature:
+            return
+        changed = duplicates != self.duplicate_channels
+        self._dedup_applied_signature = signature
+        self.duplicate_channels = duplicates
+
+        if not changed:
+            return
+
+        if duplicates:
+            report = _dedup.describe_duplicates(self.channels, others)
+            _LOGGER.info(
+                "%s: %d channel(s) are the same hardware as a separately "
+                "configured device; their NVR-side entities are disabled by "
+                "default (enable them in the entity registry if you want the "
+                "NVR view). %s",
+                self._host, len(duplicates),
+                "; ".join(
+                    f"ch{r['channel_id']} {r['channel_name']} = {r['duplicate_of']}"
+                    for r in report[:12]
+                ),
+            )
+        else:
+            _LOGGER.info(
+                "%s: no cross-entry duplicate channels detected", self._host
+            )
+        self.async_update_listeners()
+
+    def is_duplicate_channel(self, channel_id: Any) -> bool:
+        """Whether a channel's entities should be disabled by default."""
+        return _dedup.should_disable_channel(channel_id, self.duplicate_channels)
 
     # ---- v0.6.14: per-endpoint fault-tolerant fetchers ----
 
@@ -1498,6 +2080,68 @@ class HikvisionISAPICoordinator(DataUpdateCoordinator[HikvisionISAPIData]):
             self._host,
         )
         return None
+
+    async def _fetch_recording(
+        self,
+        client: ISAPIClient,
+        channels: list[dict[str, Any]],
+        now: datetime | None = None,
+    ) -> dict[str, Any]:
+        """Fetch per-channel recording activity via segment search.
+
+        v0.8. This is the ONLY recording-state source on the fleet —
+        ``/ContentMgmt/Recording/channels/{i}/status`` is 403/404 on all
+        12 devices, and ``InputProxy/.../status`` carries no record
+        field. We instead POST a ``CMSearchDescription`` to
+        ``/ContentMgmt/search`` and interpret the returned recording
+        segments (see ``capabilities.derive_recording_status`` for why
+        the verdict is *derived* and lags a real stop by up to one
+        segment length).
+
+        One batched POST covers every channel. trackIDs are generated
+        from the exact channel count — a stray out-of-range trackID makes
+        some firmwares reject the *whole* request with 400. ``maxResults``
+        scales to ``2 × channels`` so no channel is truncated away
+        (probed: 13 tracks + maxResults=13 returned only 12).
+
+        Degrades to ``{}`` (→ no recording entities) on: no channels,
+        endpoint 403 (176.51/52/53), 400 (bad trackID on some firmware),
+        connection error, or a NO MATCHES response (device has no storage
+        or recording is not configured). Never raises — a recording probe
+        failure must not take the whole refresh down.
+        """
+        # trackIDs only make sense for channels with a numeric id.
+        track_ids: list[str] = []
+        for ch in channels:
+            cid = str(ch.get("id", "")).strip()
+            if cid.isdigit():
+                track_ids.append(f"{cid}01")
+        if not track_ids:
+            return {}
+
+        body = _caps.build_search_body(
+            track_ids,
+            window_minutes=_caps.SEARCH_WINDOW_MINUTES,
+            max_results=_caps.search_max_results(len(track_ids)),
+            now=now,
+        )
+        try:
+            root = await client.post_xml(ISAPI_CONTENT_MGMT_SEARCH, body)
+        except (ISAPIError, ISAPIAuthError, ISAPIConnectionError) as exc:
+            # 403 / 400 / network — this device simply has no usable
+            # recording-search endpoint. INFO once so it shows in the
+            # diagnostic summary; not a warning, it's expected on IPCs
+            # and older firmwares.
+            _LOGGER.info(
+                "%s recording search unavailable (%s); no recording "
+                "entities for this device", self._host, exc,
+            )
+            return {}
+
+        if not _caps.recording_available(root):
+            return {}
+        segments = _caps.parse_recording_segments(root)
+        return _caps.derive_recording_status(segments, now=now)
 
     async def _fetch_network_interfaces(
         self, client: ISAPIClient,
@@ -1782,6 +2426,23 @@ class HikvisionISAPICoordinator(DataUpdateCoordinator[HikvisionISAPIData]):
         # v0.6.19: device clock / NTP / timezone info.
         time_info = _parse_time(time_xml)
 
+        # v0.8: per-channel recording activity via segment search.
+        # Runs in its own client block (the main fetch block's client is
+        # already closed) and needs ``channels`` to build trackIDs, so it
+        # goes after channel parsing. Best-effort: ``_fetch_recording``
+        # swallows 403/400/network errors and returns {} so a device
+        # without a usable search endpoint keeps the rest of its data.
+        recording_status: dict[str, Any] = {}
+        if channels:
+            try:
+                async with self._make_client() as client:
+                    recording_status = await self._fetch_recording(client, channels)
+            except (ISAPIError, ISAPIAuthError, ISAPIConnectionError) as exc:
+                _LOGGER.info(
+                    "%s recording search failed (%s); no recording entities",
+                    self._host, exc,
+                )
+
         # v0.6.15: refresh summary log. One INFO line per refresh
         # showing which categories of data populated and which didn't.
         # The user can paste this single line back to confirm where
@@ -1866,48 +2527,16 @@ class HikvisionISAPICoordinator(DataUpdateCoordinator[HikvisionISAPIData]):
                 continue
             try:
                 ch_status = _parse_channel_status_extended(status_xml)
-                # v0.6.12: per-channel status takes priority over the
-                # channel-list values. Pre-v0.6.12 we used ``ch_status
-                # or ch`` which put False from the per-channel endpoint
-                # *behind* the channel-list value (a ``True`` in the
-                # channel list would dominate a fresh ``False`` from
-                # the per-channel endpoint). The current intent is the
-                # reverse: if the per-channel endpoint reported
-                # online=False, trust it. Only fall back to the
-                # channel-list when the per-channel data wasn't
-                # returned at all (already handled by the early
-                # ``continue`` above).
-                ch["online"] = ch_status["online"]
-                # v0.7.4: ``recording`` is now tri-state. A ``None`` here
-                # means the status endpoint carried no <recordStatus>
-                # (true for every NVR probed in the user's fleet), so it
-                # must NOT clobber a value the channel list did supply.
-                # Only an explicit True/False from the fresher endpoint
-                # overrides the older one.
-                if ch_status["recording"] is not None:
-                    ch["recording"] = ch_status["recording"]
-                elif "recording" not in ch:
-                    # Neither source reported it — record the unknown
-                    # explicitly so the entity renders "unknown" rather
-                    # than falling through to a False default.
-                    ch["recording"] = None
-                ch["motion_detected"] = ch_status["motion_detected"]
-                # v0.5.0 — extended IPC health fields. The endpoint
-                # reports the device uptime (not the channel's); useful
-                # for the binary_sensor platforms and the new per-channel
-                # sensor entities.
-                for k in (
-                    "uptime",
-                    "reboot_count",
-                    "sd_card_writes",
-                    "camera_run_total_time",
-                    "dome_heat_state",
-                    "dome_fan_state",
-                    "dome_runtime_over_40",
-                ):
-                    v = ch_status.get(k)
-                    if v is not None:
-                        ch[k] = v
+                # v0.8: merge rules moved into _merge_channel_status so
+                # they are unit-testable (they previously lived inline in
+                # this 400-line method where no test could reach them —
+                # which is exactly how the IPC "online" regression hid:
+                # the session-list endpoint has no <online>, so the parser
+                # returned False and this line clobbered the correct
+                # enabled=true from the channel list). Tri-state now:
+                # None from the status endpoint never overwrites a value
+                # the channel list already supplied.
+                _merge_channel_status(ch, ch_status)
             except ISAPIError as exc:
                 _LOGGER.debug(
                     "Per-channel status parse failed for %s ch %s: %s",
@@ -1962,6 +2591,10 @@ class HikvisionISAPICoordinator(DataUpdateCoordinator[HikvisionISAPIData]):
         # instance for diagnostic logging + the
         # ``capability_video_input_channels`` sensor.
         self.system_capabilities = system_capabilities
+        # v0.8: cache recording status on the instance so the
+        # binary_sensor / sensor platforms can read it during late
+        # entity registration (mirrors self.storage).
+        self.recording_status = recording_status
 
         return HikvisionISAPIData(
             device_info=device_info,
@@ -1974,4 +2607,5 @@ class HikvisionISAPICoordinator(DataUpdateCoordinator[HikvisionISAPIData]):
             streaming_channel_detail=streaming_channel_detail,
             time_info=time_info,
             system_capabilities=system_capabilities,
+            recording_status=recording_status,
         )

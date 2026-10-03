@@ -1,0 +1,54 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<DeviceInfo version="2.0">
+
+<deviceName>摄像机14</deviceName>
+
+<deviceID>65adc000-40e9-11b5-83fe-244845996eab</deviceID>
+
+<deviceDescription>IPCamera</deviceDescription>
+
+<deviceLocation>hangzhou</deviceLocation>
+
+<systemContact>Hikvision.China</systemContact>
+
+<model>DS-2CD2245XM-LGL2T</model>
+
+<serialNumber>SN-TEST-001</serialNumber>
+
+<macAddress>02:00:00:00:00:07</macAddress>
+
+<firmwareVersion>V5.8.35</firmwareVersion>
+
+<firmwareReleasedDate>build 260827</firmwareReleasedDate>
+
+<encoderVersion>V7.3</encoderVersion>
+
+<encoderReleasedDate>build 251013</encoderReleasedDate>
+
+<bootVersion>V1.3.4</bootVersion>
+
+<bootReleasedDate>100316</bootReleasedDate>
+
+<hardwareVersion>0x0</hardwareVersion>
+
+<deviceType>IPCamera</deviceType>
+
+<telecontrolID>88</telecontrolID>
+
+<supportBeep>true</supportBeep>
+
+<supportVideoLoss>false</supportVideoLoss>
+
+<firmwareVersionInfo>B-R-E10-0</firmwareVersionInfo>
+
+<manufacturer>hikvision</manufacturer>
+
+<subSerialNumber>SUB-TEST-003</subSerialNumber>
+
+<OEMCode>1</OEMCode>
+
+<bootTime>2026-09-17T11:38:31Z</bootTime>
+
+</DeviceInfo>
+
