@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<IrcutFilter version="2.0" xmlns="http://www.hikvision.com/ver20/XMLSchema">
+<IrcutFilterType>auto</IrcutFilterType>
+<nightToDayFilterLevel>4</nightToDayFilterLevel>
+</IrcutFilter>

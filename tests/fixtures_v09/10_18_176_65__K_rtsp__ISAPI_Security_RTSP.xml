@@ -1,0 +1,4 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<RTSPCertificate version="1.0" xmlns="http://www.hikvision.com/ver20/XMLSchema">
+<certificateType>digest/basic</certificateType>
+</RTSPCertificate>

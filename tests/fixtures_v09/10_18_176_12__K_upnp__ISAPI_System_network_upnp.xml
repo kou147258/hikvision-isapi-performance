@@ -1,0 +1,57 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<UPnP version="2.0" xmlns="http://www.hikvision.com/ver20/XMLSchema">
+<enabled>false</enabled>
+<name>HIKVISION DS-2DE3A20IW-D/GLT/XM - SUB-TEST-002</name>
+<ports version="2.0" xmlns="http://www.hikvision.com/ver20/XMLSchema">
+<enabled>true</enabled>
+<natType>auto</natType>
+<natRouterLanAddr>
+<ipVersion>v4</ipVersion>
+<ipAddress>0.0.0.0</ipAddress>
+</natRouterLanAddr>
+<portList>
+<port version="2.0" xmlns="http://www.hikvision.com/ver20/XMLSchema">
+<id>1</id>
+<enabled>true</enabled>
+<internalPort>http</internalPort>
+<externalPort>80</externalPort>
+</port>
+<port version="2.0" xmlns="http://www.hikvision.com/ver20/XMLSchema">
+<id>2</id>
+<enabled>true</enabled>
+<internalPort>admin</internalPort>
+<externalPort>8000</externalPort>
+</port>
+<port version="2.0" xmlns="http://www.hikvision.com/ver20/XMLSchema">
+<id>3</id>
+<enabled>true</enabled>
+<internalPort>SDK_OVER_TLS</internalPort>
+<externalPort>8443</externalPort>
+</port>
+<port version="2.0" xmlns="http://www.hikvision.com/ver20/XMLSchema">
+<id>4</id>
+<enabled>true</enabled>
+<internalPort>https</internalPort>
+<externalPort>443</externalPort>
+</port>
+<port version="2.0" xmlns="http://www.hikvision.com/ver20/XMLSchema">
+<id>5</id>
+<enabled>true</enabled>
+<internalPort>rtsp</internalPort>
+<externalPort>554</externalPort>
+</port>
+<port version="2.0" xmlns="http://www.hikvision.com/ver20/XMLSchema">
+<id>6</id>
+<enabled>true</enabled>
+<internalPort>WebSocket</internalPort>
+<externalPort>7681</externalPort>
+</port>
+<port version="2.0" xmlns="http://www.hikvision.com/ver20/XMLSchema">
+<id>7</id>
+<enabled>true</enabled>
+<internalPort>WebSocketS</internalPort>
+<externalPort>7682</externalPort>
+</port>
+</portList>
+</ports>
+</UPnP>

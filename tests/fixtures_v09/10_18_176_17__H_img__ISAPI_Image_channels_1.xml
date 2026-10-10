@@ -1,0 +1,88 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ImageChannel version="2.0" xmlns="http://www.hikvision.com/ver20/XMLSchema">
+<id>1</id>
+<enabled>true</enabled>
+<videoInputID>1</videoInputID>
+<ImageFlip version="2.0" xmlns="http://www.hikvision.com/ver20/XMLSchema">
+<enabled>false</enabled>
+</ImageFlip>
+<IrcutFilter version="2.0" xmlns="http://www.hikvision.com/ver20/XMLSchema">
+<IrcutFilterType>auto</IrcutFilterType>
+<nightToDayFilterLevel>4</nightToDayFilterLevel>
+<nightToDayFilterTime>5</nightToDayFilterTime>
+</IrcutFilter>
+<Exposure version="2.0" xmlns="http://www.hikvision.com/ver20/XMLSchema">
+<ExposureType>manual</ExposureType>
+<OverexposeSuppress>
+<enabled>false</enabled>
+</OverexposeSuppress>
+</Exposure>
+<powerLineFrequency version="2.0" xmlns="http://www.hikvision.com/ver20/XMLSchema">
+<powerLineFrequencyMode>50hz</powerLineFrequencyMode>
+</powerLineFrequency>
+<PTZ version="2.0" xmlns="http://www.hikvision.com/ver20/XMLSchema">
+<enabled>true</enabled>
+</PTZ>
+<CaptureMode version="2.0" xmlns="http://www.hikvision.com/ver20/XMLSchema">
+<mode>close</mode>
+</CaptureMode>
+<LaserLight version="2.0" xmlns="http://www.hikvision.com/ver20/XMLSchema">
+<mode>manual</mode>
+<brightnessLevel>0</brightnessLevel>
+<laserangle>0</laserangle>
+</LaserLight>
+<WDR version="2.0" xmlns="http://www.hikvision.com/ver20/XMLSchema">
+<mode>close</mode>
+<WDRLevel>50</WDRLevel>
+</WDR>
+<BLC version="2.0" xmlns="http://www.hikvision.com/ver20/XMLSchema">
+<enabled>false</enabled>
+</BLC>
+<NoiseReduce version="2.0" xmlns="http://www.hikvision.com/ver20/XMLSchema">
+<mode>general</mode>
+<GeneralMode>
+<generalLevel>50</generalLevel>
+</GeneralMode>
+</NoiseReduce>
+<WhiteBalance version="2.0" xmlns="http://www.hikvision.com/ver20/XMLSchema">
+<WhiteBalanceStyle>auto1</WhiteBalanceStyle>
+<WhiteBalanceRed>50</WhiteBalanceRed>
+<WhiteBalanceBlue>50</WhiteBalanceBlue>
+</WhiteBalance>
+<Sharpness version="2.0" xmlns="http://www.hikvision.com/ver20/XMLSchema">
+<SharpnessLevel>50</SharpnessLevel>
+</Sharpness>
+<Gain version="2.0" xmlns="http://www.hikvision.com/ver20/XMLSchema">
+<GainLevel>100</GainLevel>
+</Gain>
+<Shutter version="2.0" xmlns="http://www.hikvision.com/ver20/XMLSchema">
+<ShutterLevel>1/25</ShutterLevel>
+</Shutter>
+<Color version="2.0" xmlns="http://www.hikvision.com/ver20/XMLSchema">
+<brightnessLevel>50</brightnessLevel>
+<contrastLevel>50</contrastLevel>
+<saturationLevel>50</saturationLevel>
+</Color>
+<HLC version="2.0" xmlns="http://www.hikvision.com/ver20/XMLSchema">
+<enabled>false</enabled>
+<HLCLevel>50</HLCLevel>
+</HLC>
+<DigitalZoom>
+<ZoomRatio>1x</ZoomRatio>
+</DigitalZoom>
+<Palettes>
+<mode>WhiteHot</mode>
+</Palettes>
+<SupplementLight version="2.0" xmlns="http://www.hikvision.com/ver20/XMLSchema">
+<supplementLightMode>eventIntelligence</supplementLightMode>
+<mixedLightBrightnessRegulatMode>auto</mixedLightBrightnessRegulatMode>
+<whiteLightBrightness>100</whiteLightBrightness>
+<irLightBrightness>100</irLightBrightness>
+<EventIntelligenceModeCfg>
+<brightnessRegulatMode>auto</brightnessRegulatMode>
+<whiteLightBrightness>100</whiteLightBrightness>
+<irLightBrightness>100</irLightBrightness>
+<associatedVMDHuman>true</associatedVMDHuman>
+</EventIntelligenceModeCfg>
+</SupplementLight>
+</ImageChannel>

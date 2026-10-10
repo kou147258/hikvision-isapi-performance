@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<DSCPList version="2.0" xmlns="http://www.hikvision.com/ver20/XMLSchema">
+<DSCP>
+<id>1</id>
+<enabled>TRUE</enabled>
+<priorityValue>48</priorityValue>
+<trafficType>devicemanagement</trafficType>
+</DSCP>
+<DSCP>
+<id>2</id>
+<enabled>TRUE</enabled>
+<priorityValue>34</priorityValue>
+<trafficType>commandcontrol</trafficType>
+</DSCP>
+<DSCP>
+<id>3</id>
+<enabled>TRUE</enabled>
+<priorityValue>46</priorityValue>
+<trafficType>video</trafficType>
+</DSCP>
+</DSCPList>

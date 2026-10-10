@@ -86,9 +86,22 @@
       "device_uptime": {"name": "Uptime"},
       "device_uptime_hours": {"name": "Uptime (hours)"},
       "reboot_count": {"name": "Reboot Count"},
-      "cpu_model": {"name": "CPU Model"},
+      "cpu_description": {"name": "CPU Description"},
       "sd_card_writes": {"name": "SD Card Writes"},
-      "dome_high_temp_runtime": {"name": "Dome High Temp Runtime"}
+      "dome_high_temp_runtime": {"name": "Dome High Temp Runtime"},
+      "dome_run_time": {"name": "Dome Total Runtime"},
+      "dome_runtime_below_neg20": {"name": "Runtime Below -20°C"},
+      "dome_runtime_normal": {"name": "Runtime -20 to 40°C"},
+      "dome_pan_rounds": {"name": "Pan Total Rounds"},
+      "dome_tilt_rounds": {"name": "Tilt Total Rounds"},
+      "camera_run_time": {"name": "Lens Total Runtime"},
+      "camera_zoom_steps": {"name": "Zoom Total Steps"},
+      "camera_focus_steps": {"name": "Focus Total Steps"},
+      "camera_iris_steps": {"name": "Iris Total Steps"},
+      "camera_icr_steps": {"name": "ICR Total Switches"},
+      "camera_focus_reverse_times": {"name": "Focus Reverse Times"},
+      "memory_type": {"name": "Memory Type"},
+      "battery_allowance": {"name": "Battery Allowance"}
     },
     "switch": {
       "recording": {"name": "Recording"}

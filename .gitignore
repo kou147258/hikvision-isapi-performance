@@ -84,3 +84,37 @@ test_new_endpoints.py
 # which matches *every* fixture (verified with an untracked probe file)
 # and would silently drop all of tests/fixtures_v08 from a fresh clone.
 tests/fixtures_v08/*Q_scheme*
+
+# v0.9 one-off tooling — repo-root only (anchored with a leading slash so
+# these patterns do NOT reach into tests/, where test_v09_*.py and
+# tests/fixtures_v09/ ARE meant to be tracked).
+#
+# Why these must never be committed: several of them embed the REAL
+# identifiers they hunt for. fix_v09_leak.py hard-codes real serial
+# tails, scan_residue_v*.py carries the full needle list, and
+# prep_filter_repo_rules.py emits the real->placeholder mapping.
+# Committing any of them would re-publish exactly what the sanitizing
+# pass removed — the same mistake v0.8 made with sanitize_scan.py.
+#
+# NOTE: a .gitignore rule has NO effect on files git already tracks.
+# All of the below are untracked as of v0.9 (verified 2026-10-10),
+# so these rules do apply.
+/fix_*.py
+/scan_*.py
+/selftest_*.py
+/survey_*.py
+/sync_*.py
+/gate_*.py
+/push_*.py
+/prep_*.py
+/reaudit_*.py
+/recheck_*.py
+/adjudicate_*.py
+/drill_*.py
+/rewrite_*.py
+# v0.9 local artifacts: probe outputs, drill clones, scan reports.
+/probe_captures_v09/
+/_rewrite_drill_*/
+/v09_*.txt
+/v09_*.json
+/v08_verify_final.json

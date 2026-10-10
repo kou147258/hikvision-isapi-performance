@@ -86,9 +86,22 @@
       "device_uptime": {"name": "运行时长"},
       "device_uptime_hours": {"name": "运行时长（小时）"},
       "reboot_count": {"name": "重启次数"},
-      "cpu_model": {"name": "CPU 型号"},
+      "cpu_description": {"name": "CPU 描述"},
       "sd_card_writes": {"name": "SD 卡写入次数"},
-      "dome_high_temp_runtime": {"name": "球机高温累计运行"}
+      "dome_high_temp_runtime": {"name": "球机高温累计运行"},
+      "dome_run_time": {"name": "云台累计运行时长"},
+      "dome_runtime_below_neg20": {"name": "低于 -20°C 运行时长"},
+      "dome_runtime_normal": {"name": "-20~40°C 运行时长"},
+      "dome_pan_rounds": {"name": "水平累计转动圈数"},
+      "dome_tilt_rounds": {"name": "垂直累计转动圈数"},
+      "camera_run_time": {"name": "镜头累计运行时长"},
+      "camera_zoom_steps": {"name": "变焦累计步数"},
+      "camera_focus_steps": {"name": "对焦累计步数"},
+      "camera_iris_steps": {"name": "光圈累计步数"},
+      "camera_icr_steps": {"name": "ICR 累计切换次数"},
+      "camera_focus_reverse_times": {"name": "对焦往返次数"},
+      "memory_type": {"name": "内存类型"},
+      "battery_allowance": {"name": "电池余量"}
     },
     "switch": {
       "recording": {"name": "录像"}

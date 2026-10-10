@@ -33,6 +33,10 @@ from homeassistant.components.binary_sensor import (
 )
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
+# v0.9: the dome heater/fan binary sensors are diagnostic telemetry, so
+# they carry entity_category. sensor.py already imported this; it was
+# missing here and would have raised NameError at class-body evaluation.
+from homeassistant.helpers.entity import EntityCategory
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
 from .const import DOMAIN
@@ -187,6 +191,15 @@ async def async_setup_entry(
         getattr(coordinator, "storage", None)
         and (coordinator.storage or {}).get("hdds")
     )
+    # v0.9 batch 1: dome heater / fan binary sensors, from the already
+    # -fetched /System/status response. Built synchronously for the reload
+    # case; the listener below covers the normal path where system_status
+    # is still {} at setup time. Returns [] for the 6 non-dome devices.
+    dome_entities = _build_dome_state_entities(coordinator, entry)
+    entities.extend(dome_entities)
+    coordinator._hikvision_isapi_performance_dome_binary_added = bool(  # type: ignore[attr-defined]
+        dome_entities
+    )
     # v0.8: alertStream push-event sensors (video_loss / tamper). Empty
     # until the reader task connects and the device actually pushes
     # something, so normally the listener below does the registering.
@@ -225,6 +238,19 @@ async def async_setup_entry(
     coordinator.async_add_listener(
         _make_event_listener(coordinator, entry, async_add_entities)
     )
+
+    # v0.9 batch 1: late-arrival listener for dome heater/fan sensors.
+    # Separate from the disk listener (which latches on ``storage.hdds``)
+    # and the channel listener (which latches on ``channels``) because the
+    # status response has its own arrival timing. Registered
+    # unconditionally; no-ops for the 6 non-dome devices and latches after
+    # one successful registration.
+    if not getattr(
+        coordinator, "_hikvision_isapi_performance_dome_binary_added", False
+    ):
+        coordinator.async_add_listener(
+            _make_dome_state_listener(coordinator, entry, async_add_entities)
+        )
 
 
 def _make_event_listener(
@@ -398,6 +424,76 @@ def _build_per_hdd_binary_entities(
         )
         for h in hdds
     ]
+
+
+# v0.9 batch 1: dome heater / fan state from ``<DomeInfo>``.
+#
+# Sourced from ``/ISAPI/System/status``, which is already fetched on every
+# poll, so these cost zero extra requests. Real-fleet coverage: only the 6
+# dome IPCs report ``<DomeInfo>`` (176.10/12/13/51/52/53); the 3
+# fixed-lens IPCs and all 3 recorders omit the block entirely and must get
+# no entity at all.
+#
+# ``heatState`` / ``fanState`` are 0|1 flags. A reading of 0 is REAL data
+# (heater off), not absence — 176.13/51/52/53 report both as 0 because
+# neither mechanism has ever engaged. Gating on presence of the block, and
+# treating 0 as "off", keeps that distinction intact.
+_DOME_STATE_SPECS = {
+    "dome_heater_active": ("球机加热器运行中", "heat_state", "mdi:radiator"),
+    "dome_fan_active": ("球机风扇运行中", "fan_state", "mdi:fan"),
+}
+
+
+def _build_dome_state_entities(
+    coordinator: HikvisionISAPICoordinator,
+    entry: ConfigEntry,
+) -> list[BinarySensorEntity]:
+    """Build heater / fan binary sensors, only on devices with a dome.
+
+    Returns ``[]`` for non-dome devices and while ``system_status`` is
+    still empty (the normal state at setup time, since platforms are
+    forwarded before the first refresh completes).
+    """
+    status = getattr(coordinator, "system_status", None) or {}
+    dome = status.get("dome_info")
+    if not dome:
+        return []
+    return [
+        HikvisionISAPIDomeStateBinarySensor(coordinator, entry, sensor_key)
+        for sensor_key in _DOME_STATE_SPECS
+    ]
+
+
+def _make_dome_state_listener(
+    coordinator: HikvisionISAPICoordinator,
+    entry: ConfigEntry,
+    async_add_entities: AddEntitiesCallback,
+):
+    """One-shot listener: register dome heater/fan sensors once data arrives.
+
+    Mirrors ``_make_hdd_binary_listener``: kept separate from the channel
+    listener, which latches on ``coordinator.channels`` and could fire
+    before the status endpoint answers.
+
+    Must stay a plain sync function: HA calls ``async_add_listener``
+    callbacks synchronously and discards the result, so an ``async def``
+    here would never run its body (the v0.7.3 dead-listener defect).
+    """
+
+    def _on_update() -> None:
+        if getattr(
+            coordinator,
+            "_hikvision_isapi_performance_dome_binary_added",
+            False,
+        ):
+            return
+        new_entities = _build_dome_state_entities(coordinator, entry)
+        if not new_entities:
+            return
+        coordinator._hikvision_isapi_performance_dome_binary_added = True  # type: ignore[attr-defined]
+        async_add_entities(new_entities)
+
+    return _on_update
 
 
 # v0.8: alertStream push-event sensors.
@@ -843,4 +939,62 @@ class HikvisionISAPIHddProblemBinarySensor(
                 status = (h.get("status") or "").strip().lower()
                 return status not in _HDD_HEALTHY_STATES
         return None
+
+
+class HikvisionISAPIDomeStateBinarySensor(
+    HikvisionISAPIEntity, BinarySensorEntity
+):
+    """v0.9: dome heater / fan running state from ``<DomeInfo>``.
+
+    Reads ``system_status["dome_info"][<heat_state|fan_state>]``, which is
+    a 0/1 flag. ON means the mechanism is currently engaged.
+
+    Tri-state, matching the v0.8 online/recording fix: returns ``None``
+    (HA "unknown") when the device hasn't reported a value yet, rather than
+    asserting "off". A reported ``0`` is a genuine reading and renders OFF —
+    176.13/51/52/53 legitimately sit at 0 because neither mechanism has
+    ever engaged.
+
+    Only ever instantiated on the 6 dome devices (the builder gates on the
+    presence of the ``dome_info`` block), so non-dome devices get no entity
+    instead of a permanently-unknown one.
+
+    Hand-written class (``_sensor_key`` + ``_attr_*``) rather than the
+    description-dataclass pattern sensor.py uses: every existing entity in
+    this module is hand-written, and conftest stubs no
+    ``BinarySensorEntityDescription``. Adding a second paradigm for two
+    entities would make the module inconsistent.
+    """
+
+    # Diagnostic telemetry, like the rest of the v0.9 batch-1 entities.
+    _attr_entity_category = EntityCategory.DIAGNOSTIC
+
+    def __init__(
+        self,
+        coordinator: HikvisionISAPICoordinator,
+        entry: ConfigEntry,
+        sensor_key: str,
+    ) -> None:
+        super().__init__(coordinator, entry)
+        self._sensor_key = sensor_key
+        self._attr_unique_id = f"{entry.entry_id}_{sensor_key}"
+        # Single source of truth: builder and entity read the same spec
+        # table, so label / field / icon cannot drift apart.
+        label, field, icon = _DOME_STATE_SPECS[sensor_key]
+        self._dome_field = field
+        self._attr_name = label
+        self._attr_icon = icon
+
+    @property
+    def is_on(self) -> bool | None:
+        if self.coordinator.data is None:
+            return None
+        status = getattr(self.coordinator.data, "system_status", None) or {}
+        dome = status.get("dome_info")
+        if not isinstance(dome, dict):
+            return None
+        value = dome.get(self._dome_field)
+        if value is None:
+            return None
+        return bool(value)
 

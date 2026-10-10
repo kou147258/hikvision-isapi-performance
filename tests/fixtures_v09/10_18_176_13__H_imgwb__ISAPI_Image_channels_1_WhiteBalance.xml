@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<WhiteBalance version="2.0" xmlns="http://www.hikvision.com/ver20/XMLSchema">
+<WhiteBalanceStyle>auto2</WhiteBalanceStyle>
+<WhiteBalanceRed>50</WhiteBalanceRed>
+<WhiteBalanceBlue>50</WhiteBalanceBlue>
+</WhiteBalance>

@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<DeviceStatus version="2.0" xmlns="http://www.hikvision.com/ver20/XMLSchema">
+<currentDeviceTime>2026-10-04T04:01:29+08:00</currentDeviceTime>
+<deviceUpTime>1441397</deviceUpTime>
+<CPUList>
+<CPU>
+<cpuDescription>ARM926EJ-Sid(wb) [41069265] revision 5 (ARMv5TEJ)</cpuDescription>
+<cpuUtilization>50</cpuUtilization>
+</CPU>
+</CPUList>
+<MemoryList>
+<Memory>
+<memoryDescription>DDR Memory</memoryDescription>
+<memoryUsage>95</memoryUsage>
+<memoryAvailable>4136</memoryAvailable>
+</Memory>
+</MemoryList>
+</DeviceStatus>

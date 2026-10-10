@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<DeviceStatus version="2.0" xmlns="http://www.isapi.org/ver20/XMLSchema">
+<currentDeviceTime>2026-10-04T04:01:37+08:00</currentDeviceTime>
+<deviceUpTime>904686</deviceUpTime>
+<CPUList>
+<CPU>
+<cpuDescription>ARMv7 Processor rev 1 (v7l)</cpuDescription>
+<cpuUtilization>0</cpuUtilization>
+</CPU>
+</CPUList>
+<MemoryList>
+<Memory>
+<memoryDescription>DDR Memory</memoryDescription>
+<memoryUsage>
+1116.175781</memoryUsage>
+<memoryAvailable>
+13.781250</memoryAvailable>
+</Memory>
+</MemoryList>
+</DeviceStatus>

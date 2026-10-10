@@ -7,9 +7,9 @@ number in ``Video/dynVideoInputChannelID`` (NVR schema) or
 
     IPC摄像机10 (DS-2DF8C832MX-ZDK) — 5 streams, 1 camera
         stream 101..105, all channelName='摄像机10', all owner='1'
-    IPC仓库 (DS-FB2127) — 3 streams, 1 camera
+    IPC摄像机06 (DS-FB2127) — 3 streams, 1 camera
         stream 1,2,3, all channelName='摄像机06', all owner='1'
-    NVR远传 (DS-8632N-I8) — 35 streams, 13 cameras
+    NVR录像机01 (DS-8632N-I8) — 35 streams, 13 cameras
         stream 101/102/104 -> owner 1, 201/202/204 -> owner 2, ...
 
 ``_parse_streaming_channels_list`` emitted one channel dict per stream, so a
@@ -97,7 +97,7 @@ def test_ipc_with_five_streams_yields_one_channel() -> None:
 
 
 def test_ipc_with_legacy_ids_yields_one_channel() -> None:
-    """仓库 IPC (DS-FB2127): legacy stream ids 1,2,3 -> 1 channel."""
+    """摄像机06 IPC (DS-FB2127): legacy stream ids 1,2,3 -> 1 channel."""
     channels = _parse_streaming_channels_list(_root("10_18_176_18"))
 
     assert len(channels) == 1
@@ -113,7 +113,7 @@ def test_second_ipc_also_yields_one_channel() -> None:
 
 
 def test_nvr_keeps_one_channel_per_physical_camera() -> None:
-    """录像机 01: 35 streams across 13 cameras must stay 13 channels.
+    """录像机01 NVR: 35 streams across 13 cameras must stay 13 channels.
 
     Grouping must not over-collapse — an NVR genuinely has many cameras.
     """
@@ -159,7 +159,7 @@ def test_grouped_id_resolves_main_and_sub_stream_on_nvr_style_ipc() -> None:
 
 
 def test_grouped_id_resolves_main_and_sub_stream_on_legacy_ipc() -> None:
-    """仓库 IPC (ids 1,2,3): id='1' must find stream 1 (main) and 2 (sub).
+    """摄像机06 IPC (ids 1,2,3): id='1' must find stream 1 (main) and 2 (sub).
 
     ``_streaming_id_candidates`` takes a single argument (the channel id)
     and returns the bare id first, then the ``{channel}01`` recorder
@@ -194,7 +194,7 @@ def test_grouped_id_resolves_main_and_sub_stream_on_legacy_ipc() -> None:
 
 
 def test_nvr_grouped_ids_resolve_their_own_streams() -> None:
-    """录像机 01: channel 2 must read stream 201/202, not channel 1's.
+    """录像机01 NVR: channel 2 must read stream 201/202, not channel 1's.
 
     Expected values from the captured XML: stream 101 = 3840x2160 H.264,
     stream 201 = 1920x1080 H.265, stream 202 = 640x360 H.264. The codec

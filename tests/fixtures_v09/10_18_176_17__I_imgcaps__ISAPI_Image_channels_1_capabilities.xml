@@ -1,0 +1,83 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ImageChannel version="2.0" xmlns="http://www.hikvision.com/ver20/XMLSchema">
+<id>1</id>
+<enabled>true</enabled>
+<videoInputID>1</videoInputID>
+<ImageFlip>
+<enabled opt="true,false">false</enabled>
+<ImageFlipStyle opt="LEFTRIGHT,UPDOWN,CENTER"></ImageFlipStyle>
+</ImageFlip>
+<WDR>
+<mode opt="close,open">close</mode>
+<WDRLevel min="0" max="100">50</WDRLevel>
+</WDR>
+<BLC>
+<enabled opt="true,false">false</enabled>
+<BLCMode opt="CLOSE,UP,DOWN,LEFT,RIGHT,CENTER">CLOSE</BLCMode>
+</BLC>
+<IrcutFilter>
+<IrcutFilterType opt="day,night,auto,schedule">auto</IrcutFilterType>
+<nightToDayFilterLevel opt="0,1,2,3,4,5,6,7">4</nightToDayFilterLevel>
+<nightToDayFilterTime min="5" max="120">5</nightToDayFilterTime>
+<Schedule>
+<scheduleType>day</scheduleType>
+<TimeRange>
+<beginTime>06:00:00</beginTime>
+<endTime>18:00:00</endTime>
+</TimeRange>
+</Schedule>
+</IrcutFilter>
+<WhiteBalance>
+<WhiteBalanceStyle opt="manual,auto1,auto2,locked,daylightLamp,incandescentlight,warmlight,naturallight">auto1</WhiteBalanceStyle>
+<WhiteBalanceRed min="0" max="100">50</WhiteBalanceRed>
+<WhiteBalanceBlue min="0" max="100">50</WhiteBalanceBlue>
+</WhiteBalance>
+<Exposure>
+<ExposureType opt="manual">manual</ExposureType>
+<OverexposeSuppress>
+<enabled opt="true,false">false</enabled>
+</OverexposeSuppress>
+</Exposure>
+<Sharpness>
+<SharpnessLevel min="0" max="100">50</SharpnessLevel>
+</Sharpness>
+<Shutter>
+<ShutterLevel opt="1/3,1/6,1/12,1/25,1/50,1/100,1/150,1/200,1/250,1/500,1/750,1/1000,1/2000,1/4000,1/10000,1/100000">1/25</ShutterLevel>
+</Shutter>
+<Color>
+<brightnessLevel min="0" max="100">50</brightnessLevel>
+<contrastLevel min="0" max="100">50</contrastLevel>
+<saturationLevel min="0" max="100">50</saturationLevel>
+</Color>
+<NoiseReduce>
+<mode opt="close,general,advanced">general</mode>
+<GeneralMode>
+<generalLevel min="0" max="100">50</generalLevel>
+</GeneralMode>
+<AdvancedMode>
+<FrameNoiseReduceLevel min="0" max="100">50</FrameNoiseReduceLevel>
+<InterFrameNoiseReduceLevel min="0" max="100">50</InterFrameNoiseReduceLevel>
+</AdvancedMode>
+</NoiseReduce>
+<PTZ>
+<enabled>true</enabled>
+</PTZ>
+<HLC>
+<enabled opt="true,false">false</enabled>
+<HLCLevel min="0" max="100">50</HLCLevel>
+</HLC>
+<SupplementLight>
+<supplementLightMode opt="eventIntelligence,colorVuWhiteLight,irLight,close">eventIntelligence</supplementLightMode>
+<mixedLightBrightnessRegulatMode opt="auto,manual">auto</mixedLightBrightnessRegulatMode>
+<whiteLightBrightness min="0" max="100">100</whiteLightBrightness>
+<irLightBrightness min="0" max="100">100</irLightBrightness>
+<EventIntelligenceModeCfg>
+<brightnessRegulatMode opt="auto,manual">auto</brightnessRegulatMode>
+<whiteLightBrightness min="0" max="100">100</whiteLightBrightness>
+<irLightBrightness min="0" max="100">100</irLightBrightness>
+<associatedVMDHuman>true</associatedVMDHuman>
+</EventIntelligenceModeCfg>
+<isAutoModeBrightnessCfg>true</isAutoModeBrightnessCfg>
+</SupplementLight>
+<isSupportAntiBandingParams>true</isSupportAntiBandingParams>
+</ImageChannel>

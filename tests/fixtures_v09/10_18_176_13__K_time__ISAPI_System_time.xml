@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Time version="2.0" xmlns="http://www.hikvision.com/ver20/XMLSchema">
+<timeMode>manual</timeMode>
+<localTime>2026-10-04T04:01:26+08:00</localTime>
+<timeZone>CST-8:00:00</timeZone>
+<satelliteInterval>1440</satelliteInterval>
+<carrierInterval>1440</carrierInterval>
+</Time>

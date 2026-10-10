@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<HttpHostNotificationList version="1.0" xmlns="urn:psialliance-org">
+<HttpHostNotification version="1.0" xmlns="urn:psialliance-org">
+<id>1</id>
+<url></url>
+<protocolType>HTTP</protocolType>
+<parameterFormatType>XML</parameterFormatType>
+<addressingFormatType>hostname</addressingFormatType>
+<hostName></hostName>
+<portNo>80</portNo>
+<httpAuthenticationMethod>none</httpAuthenticationMethod>
+<Extensions xmlns="http://www.hikvision.com/ver20/XMLSchema">
+<intervalBetweenEvents>0</intervalBetweenEvents>
+</Extensions>
+</HttpHostNotification>
+</HttpHostNotificationList>

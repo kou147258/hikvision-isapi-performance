@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<DDNSList version="2.0" xmlns="http://www.hikvision.com/ver20/XMLSchema">
+<DDNS version="2.0" xmlns="http://www.hikvision.com/ver20/XMLSchema">
+<id>1</id>
+<enabled>false</enabled>
+<provider>HiDDNS</provider>
+<serverAddress>
+<addressingFormatType>hostname</addressingFormatType>
+<hostName>www.hik-online.com</hostName>
+</serverAddress>
+<portNo>0</portNo>
+<deviceDomainName></deviceDomainName>
+<userName></userName>
+</DDNS>
+</DDNSList>

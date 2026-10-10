@@ -774,6 +774,18 @@ async def async_setup_entry(
         and (coordinator.storage or {}).get("hdds")
     )
 
+    # v0.9 batch 1: dome lifetime / lens counters / memory type / CPU model
+    # / battery / SD-rewrite sensors, all parsed from the already-fetched
+    # /System/status response. Same late-arrival situation as the disk
+    # sensors: at setup time ``system_status`` is usually still {} because
+    # the first refresh runs as a background task, so build synchronously
+    # (covers the reload case) and let the listener below fill it in.
+    status_extras = _build_status_extras_entities(coordinator, entry)
+    entities.extend(status_extras)
+    coordinator._hikvision_isapi_performance_status_extras_added = bool(  # type: ignore[attr-defined]
+        status_extras
+    )
+
     # Add NIC 2 entities synchronously if the coordinator already
     # has the second interface data.
     if coordinator.network_interfaces and len(coordinator.network_interfaces) >= 2:
@@ -850,6 +862,23 @@ async def async_setup_entry(
     coordinator.async_add_listener(
         _make_recording_listener(coordinator, entry, async_add_entities),
     )
+
+    # v0.9 batch 1: late-arrival listener for the /System/status extras
+    # (dome lifetime, lens counters, memory type, CPU model, battery, SD
+    # rewrites). ``__init__.py`` forwards platforms BEFORE the first
+    # refresh completes as a background task, so ``system_status`` is still
+    # {} here and the synchronous build above returned [] — without this
+    # listener the entities would never appear. Registered unconditionally;
+    # the listener no-ops for non-dome devices and latches after one
+    # successful registration.
+    if not getattr(
+        coordinator, "_hikvision_isapi_performance_status_extras_added", False
+    ):
+        coordinator.async_add_listener(
+            _make_status_extras_listener(
+                coordinator, entry, async_add_entities
+            ),
+        )
 
 
 def _make_nic2_listener(
@@ -1482,6 +1511,303 @@ def _build_last_recording_time_entities(
     return [
         HikvisionISAPISensor(coordinator, entry, desc) for desc in descs
     ]
+
+
+# ── v0.9 batch 1: /System/status fields the pre-v0.9 parser discarded ──
+#
+# ``/ISAPI/System/status`` is fetched on EVERY poll, but pre-v0.9 only 8
+# fields were extracted and the rest of the response was thrown away. The
+# fleet probe (12 devices, 2026-10-04) found three more groups of real
+# telemetry in that same payload — so these entities cost ZERO extra
+# network requests.
+#
+# Fleet coverage (real captures):
+#   dome_info / camera_usage  6/12  dome IPCs only
+#                                 (176.10/12/13/51/52/53)
+#   memoryDescription        12/12  "DDR Memory"
+#   cpuDescription           11/12  R17.17 has no <CPUList>
+#   batteryAllowance          1/12  176.10 only — value 0 is a real reading
+#   videoRewritingTimes       1/12  176.10 only (SD-card rewrite count)
+#
+# Every entity below is gated on PRESENCE in ``system_status``: a device
+# that doesn't report the field gets no entity at all. That is the direct
+# countermeasure for the user's "part of them still show unknown"
+# complaint — no data source ⇒ no entity, rather than an entity that can
+# never resolve.
+#
+# Unit proof (not an assumption): on all six dome devices the three
+# temperature-bucket runtimes sum EXACTLY to domeRunTotalTime
+# (176.10: 0 + 248171 + 360134 = 608305), and cameraRunTotalTime equals
+# domeRunTotalTime on the same six — so these counters are seconds, and
+# are presented in hours to match the existing ``uptime_hours`` entity.
+#
+# These are per-device SINGLETON entities, so they DO carry
+# translation_key. That is deliberately different from the per-channel
+# entities fixed in v0.8, where sharing one key made every channel render
+# the same label and hid the camera names.
+
+# (key, translation_key, name, icon, source field) — seconds → hours
+_DOME_DURATION_SPECS: tuple[tuple[str, str, str, str, str], ...] = (
+    ("dome_run_time", "dome_run_time", "云台累计运行时长",
+     "mdi:rotate-right", "dome_run_total_time"),
+    ("dome_runtime_below_neg20", "dome_runtime_below_neg20",
+     "低于 -20°C 运行时长", "mdi:snowflake", "run_time_under_neg20"),
+    ("dome_runtime_normal", "dome_runtime_normal", "-20~40°C 运行时长",
+     "mdi:thermometer", "run_time_between_neg20_pos40"),
+    # translation_key reuses the pre-existing (previously orphaned)
+    # "dome_high_temp_runtime" entry: same concept — cumulative runtime
+    # above +40°C — so adding a second key would leave the old one
+    # orphaned forever and give users two labels for one thing.
+    ("dome_runtime_above_pos40", "dome_high_temp_runtime",
+     "高于 40°C 运行时长", "mdi:fire", "run_time_over_pos40"),
+)
+
+# (key, translation_key, name, icon, source field) — plain cumulative counts
+_DOME_COUNT_SPECS: tuple[tuple[str, str, str, str, str], ...] = (
+    ("dome_pan_rounds", "dome_pan_rounds", "水平累计转动圈数",
+     "mdi:rotate-3d-variant", "pan_total_rounds"),
+    ("dome_tilt_rounds", "dome_tilt_rounds", "垂直累计转动圈数",
+     "mdi:axis-arrow", "tilt_total_rounds"),
+)
+
+_CAMERA_DURATION_SPECS: tuple[tuple[str, str, str, str, str], ...] = (
+    ("camera_run_time", "camera_run_time", "镜头累计运行时长",
+     "mdi:camera-iris", "camera_run_total_time"),
+)
+
+# Lens actuation totals — the closest thing ISAPI exposes to lens wear.
+# ``camera_focus_reverse_times`` is the practically useful one: a high
+# value means the autofocus is hunting back and forth.
+_CAMERA_COUNT_SPECS: tuple[tuple[str, str, str, str, str], ...] = (
+    ("camera_zoom_steps", "camera_zoom_steps", "变焦累计步数",
+     "mdi:magnify-plus-outline", "zoom_total_steps"),
+    ("camera_focus_steps", "camera_focus_steps", "对焦累计步数",
+     "mdi:focus-auto", "focus_total_steps"),
+    ("camera_iris_steps", "camera_iris_steps", "光圈累计步数",
+     "mdi:circle-opacity", "iris_total_steps"),
+    ("camera_icr_steps", "camera_icr_steps", "ICR 累计切换次数",
+     "mdi:swap-horizontal-bold", "icr_total_steps"),
+    ("camera_focus_reverse_times", "camera_focus_reverse_times",
+     "对焦往返次数", "mdi:arrow-left-right", "focus_reverse_times"),
+)
+
+
+def _status_sub_value(sub: str, field: str):
+    """value_fn factory: read ``system_status[sub][field]``.
+
+    Returns ``None`` (→ HA "unknown") when the block is missing, which is
+    why the builder gates on presence instead of relying on this.
+    """
+
+    def _fn(data: HikvisionISAPIData) -> Any:
+        block = (getattr(data, "system_status", None) or {}).get(sub)
+        if not isinstance(block, dict):
+            return None
+        return block.get(field)
+
+    return _fn
+
+
+def _status_sub_hours(sub: str, field: str):
+    """value_fn factory: ``system_status[sub][field]`` seconds → hours."""
+    inner = _status_sub_value(sub, field)
+
+    def _fn(data: HikvisionISAPIData) -> Any:
+        return _uptime_hours(inner(data))
+
+    return _fn
+
+
+def _status_extra_value(field: str):
+    """value_fn factory: read a top-level ``system_status`` key."""
+
+    def _fn(data: HikvisionISAPIData) -> Any:
+        return (getattr(data, "system_status", None) or {}).get(field)
+
+    return _fn
+
+
+def _build_status_extras_entities(
+    coordinator: HikvisionISAPICoordinator,
+    entry: ConfigEntry,
+) -> list[HikvisionISAPISensor]:
+    """Build the v0.9 batch-1 sensors the device actually reports.
+
+    Returns ``[]`` when ``system_status`` is still empty (platforms are
+    forwarded before the first refresh finishes, so this is the normal
+    case at setup time — the listener below fills it in).
+    """
+    status = getattr(coordinator, "system_status", None) or {}
+    if not status:
+        return []
+
+    descs: list[HikvisionISAPISensorDescription] = []
+
+    if status.get("dome_info"):
+        for key, tkey, name, icon, field in _DOME_DURATION_SPECS:
+            descs.append(
+                HikvisionISAPISensorDescription(
+                    key=key,
+                    translation_key=tkey,
+                    name=name,
+                    icon=icon,
+                    device_class=SensorDeviceClass.DURATION,
+                    state_class=SensorStateClass.TOTAL_INCREASING,
+                    native_unit_of_measurement=UnitOfTime.HOURS,
+                    entity_category=EntityCategory.DIAGNOSTIC,
+                    value_fn=_status_sub_hours("dome_info", field),
+                )
+            )
+        for key, tkey, name, icon, field in _DOME_COUNT_SPECS:
+            descs.append(
+                HikvisionISAPISensorDescription(
+                    key=key,
+                    translation_key=tkey,
+                    name=name,
+                    icon=icon,
+                    state_class=SensorStateClass.TOTAL_INCREASING,
+                    entity_category=EntityCategory.DIAGNOSTIC,
+                    value_fn=_status_sub_value("dome_info", field),
+                )
+            )
+
+    if status.get("camera_usage"):
+        for key, tkey, name, icon, field in _CAMERA_DURATION_SPECS:
+            descs.append(
+                HikvisionISAPISensorDescription(
+                    key=key,
+                    translation_key=tkey,
+                    name=name,
+                    icon=icon,
+                    device_class=SensorDeviceClass.DURATION,
+                    state_class=SensorStateClass.TOTAL_INCREASING,
+                    native_unit_of_measurement=UnitOfTime.HOURS,
+                    entity_category=EntityCategory.DIAGNOSTIC,
+                    value_fn=_status_sub_hours("camera_usage", field),
+                )
+            )
+        for key, tkey, name, icon, field in _CAMERA_COUNT_SPECS:
+            descs.append(
+                HikvisionISAPISensorDescription(
+                    key=key,
+                    translation_key=tkey,
+                    name=name,
+                    icon=icon,
+                    state_class=SensorStateClass.TOTAL_INCREASING,
+                    entity_category=EntityCategory.DIAGNOSTIC,
+                    value_fn=_status_sub_value("camera_usage", field),
+                )
+            )
+
+    # 12/12 devices report the memory type string.
+    if status.get("memoryDescription") is not None:
+        descs.append(
+            HikvisionISAPISensorDescription(
+                key="memory_type",
+                translation_key="memory_type",
+                name="内存类型",
+                icon="mdi:memory",
+                entity_category=EntityCategory.DIAGNOSTIC,
+                value_fn=_status_extra_value("memoryDescription"),
+            )
+        )
+    # 11/12 — R17.17 has no <CPUList>, so no cpuDescription.
+    if status.get("cpuDescription") is not None:
+        descs.append(
+            HikvisionISAPISensorDescription(
+                key="cpu_description",
+                # Reuses the pre-existing (previously orphaned)
+                # "cpu_model" translation slot, renamed to
+                # "cpu_description" so the key matches the entity.
+                #
+                # Label is deliberately "CPU 描述", NOT "CPU 型号":
+                # fleet verification found 176.65 (DS-7708N-I4 V4.1.18)
+                # returns <cpuDescription>2786.91</cpuDescription> —
+                # a bare number, not a model name — while the other 11
+                # devices return "ARM926EJ-Sid(wb)…" / "ARMv7 Processor
+                # rev 1 (v7l)". Two captures (3 days apart) agree, so it
+                # is stable firmware behaviour, not a transient glitch.
+                # Calling that value a "model" would mislead.
+                #
+                # Equally, we do NOT label it MHz: a single value cannot
+                # prove its unit, and guessing wrong is worse than
+                # showing the raw field. "描述" is the literal meaning of
+                # the XML tag and is truthful for both shapes.
+                translation_key="cpu_description",
+                name="CPU 描述",
+                icon="mdi:cpu-64-bit",
+                entity_category=EntityCategory.DIAGNOSTIC,
+                value_fn=_status_extra_value("cpuDescription"),
+            )
+        )
+    # Gate on None, not truthiness: 176.10 reports batteryAllowance=0
+    # (this model has no battery), and 0 is a genuine reading.
+    if status.get("batteryAllowance") is not None:
+        descs.append(
+            HikvisionISAPISensorDescription(
+                key="battery_allowance",
+                translation_key="battery_allowance",
+                name="电池余量",
+                icon="mdi:battery-outline",
+                entity_category=EntityCategory.DIAGNOSTIC,
+                value_fn=_status_extra_value("batteryAllowance"),
+            )
+        )
+    if status.get("videoRewritingTimes") is not None:
+        descs.append(
+            HikvisionISAPISensorDescription(
+                key="sd_card_rewrite_times",
+                # Reuses the pre-existing orphaned "sd_card_writes"
+                # translation key: same concept (SD-card rewrite cycles).
+                # The entity ``key`` stays distinct because it is also the
+                # unique_id suffix, and a clearer name there helps when
+                # reading the entity registry.
+                translation_key="sd_card_writes",
+                name="SD 卡重写次数",
+                icon="mdi:sd",
+                state_class=SensorStateClass.TOTAL_INCREASING,
+                entity_category=EntityCategory.DIAGNOSTIC,
+                value_fn=_status_extra_value("videoRewritingTimes"),
+            )
+        )
+
+    return [
+        HikvisionISAPISensor(coordinator, entry, desc) for desc in descs
+    ]
+
+
+def _make_status_extras_listener(
+    coordinator: HikvisionISAPICoordinator,
+    entry: ConfigEntry,
+    async_add_entities: AddEntitiesCallback,
+):
+    """One-shot listener: register the v0.9 batch-1 sensors on first data.
+
+    Needed because ``__init__.py`` forwards platforms BEFORE the first
+    refresh completes as a background task, so ``system_status`` is an
+    empty dict at setup time and the synchronous build returns [].
+
+    Must stay a plain sync function: HA calls ``async_add_listener``
+    callbacks synchronously and discards the result, so an ``async def``
+    here would never run its body (the v0.7.3 dead-listener defect).
+    """
+
+    def _on_update() -> None:
+        if getattr(
+            coordinator,
+            "_hikvision_isapi_performance_status_extras_added",
+            False,
+        ):
+            return
+        new_entities = _build_status_extras_entities(coordinator, entry)
+        if not new_entities:
+            return
+        coordinator._hikvision_isapi_performance_status_extras_added = (  # type: ignore[attr-defined]
+            True
+        )
+        async_add_entities(new_entities)
+
+    return _on_update
 
 
 def _make_per_channel_listener(

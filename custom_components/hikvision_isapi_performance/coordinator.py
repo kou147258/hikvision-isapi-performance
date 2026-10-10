@@ -143,7 +143,7 @@ def normalize_device_type(raw: str) -> str:
     return DEVICE_TYPE_IPCAMERA
 
 
-def _parse_system_status(root: ET.Element | None) -> dict[str, str]:
+def _parse_system_status(root: ET.Element | None) -> dict[str, Any]:
     """Parse ``/ISAPI/System/status`` response.
 
     Hikvision's response is::
@@ -178,7 +178,18 @@ def _parse_system_status(root: ET.Element | None) -> dict[str, str]:
             "memoryUsage": "0",
             "memoryAvailable": "0",
             "uptime": "0",
-            "rebootCount": None,
+            # v0.9: "rebootCount" is deliberately NOT written here.
+            # Pre-v0.9 both this branch and the main branch below set the
+            # key unconditionally (value None when the field was absent),
+            # so the key ALWAYS existed. sensor.py gates the entity on
+            # ``"rebootCount" not in status`` — a presence check, matching
+            # ``capabilities.has_reboot_count``. Because the key was never
+            # absent, that gate could never fire and the six devices that
+            # don't report <totalRebootCount> (176.16/17/18 fixed-lens
+            # IPCs + all three recorders) got a permanently "unknown"
+            # entity — one of the symptoms the user reported.
+            #
+            # Contract from here on: absent field ⇒ absent key.
             "cpuDescription": None,
             # v0.6.26: device-reported clock (ISO 8601 with offset, or None).
             # Used by ``device_time_abnormal`` binary sensor to detect a
@@ -231,7 +242,7 @@ def _parse_system_status(root: ET.Element | None) -> dict[str, str]:
     ):
         mem_avail_int = round(mem_avail_int / 1024)
 
-    return {
+    out: dict[str, Any] = {
         "deviceStatus": (
             _xml_text(root, "deviceStatus") or "Unknown"
         ),
@@ -244,13 +255,49 @@ def _parse_system_status(root: ET.Element | None) -> dict[str, str]:
         "memoryUsage": str(mem_usage_int),
         "memoryAvailable": str(mem_avail_int),
         "uptime": _xml_text(root, "deviceUpTime") or _xml_text(root, "uptime") or "0",
-        "rebootCount": _xml_text(root, "totalRebootCount"),
         "cpuDescription": _xml_text(cpu, "cpuDescription") if cpu is not None else None,
         # v0.6.26: device-reported clock (ISO 8601 with offset, or None).
         # Used by ``dev_time_abnormal`` binary sensor to detect a
         # dead CMOS battery (V4 NVRs roll this back to 2004-05).
         "currentDeviceTime": _xml_text(root, "currentDeviceTime"),
     }
+
+    # v0.9: rebootCount is written ONLY when the device really reports
+    # <totalRebootCount>. See the ``root is None`` branch above for why
+    # an always-present key broke sensor.py's presence gate and left six
+    # devices with a permanently "unknown" entity. A reported "0" is real
+    # data and still creates the entity (176.13/51/52/53 all report 0).
+    reboot = _xml_text(root, "totalRebootCount")
+    if reboot is not None:
+        out["rebootCount"] = reboot
+
+    # v0.9 batch 1: expose the rest of this same response, which pre-v0.9
+    # threw away. No extra network cost — /System/status is already
+    # fetched every poll. Fleet coverage (12 devices, real captures):
+    #   dome_info      6/12  dome IPCs only (PTZ lifetime counters)
+    #   camera_usage   6/12  same six (lens actuation counters)
+    #   memoryDescription  12/12
+    #   batteryAllowance / videoRewritingTimes  1/12 (176.10 only)
+    # Each is omitted when the device doesn't report it, so platforms gate
+    # on presence and never build an "unknown" entity.
+    dome = _caps.parse_dome_info(root)
+    if dome:
+        out["dome_info"] = dome
+    camera = _caps.parse_camera_usage(root)
+    if camera:
+        out["camera_usage"] = camera
+
+    extras = _caps.parse_status_extras(root)
+    if extras.get("memory_description") is not None:
+        out["memoryDescription"] = extras["memory_description"]
+    # batteryAllowance=0 on 176.10 is a genuine reading (this model has no
+    # battery), so gate on None rather than truthiness.
+    if extras.get("battery_allowance") is not None:
+        out["batteryAllowance"] = extras["battery_allowance"]
+    if extras.get("video_rewriting_times") is not None:
+        out["videoRewritingTimes"] = extras["video_rewriting_times"]
+
+    return out
 
 
 def _parse_capabilities(root: ET.Element | None) -> dict[str, Any]:
@@ -595,7 +642,7 @@ def _stream_owner_channel(ch: ET.Element) -> str | None:
       ``101``/``102`` style stream ids (DS-2DF8C832MX-ZDK 摄像机10,
       DS-2CD8027F 摄像机12, DS-8632N-I8 录像机01).
     - ``<videoInputChannelID>`` — older IPC schema using ``1``/``2``/``3``
-      style stream ids (DS-FB2127 仓库).
+      style stream ids (DS-FB2127 摄像机06).
 
     Returns ``None`` when the field is absent, so the caller can fall back
     to the stream's own id instead of silently dropping the channel.
@@ -1438,7 +1485,10 @@ class HikvisionISAPIData:
     def __init__(
         self,
         device_info: dict[str, str],
-        system_status: dict[str, str],
+        # v0.9: values are str for the pre-v0.9 fields, but also int
+        # (batteryAllowance / videoRewritingTimes) and nested dicts
+        # (dome_info / camera_usage). Hence Any, not str.
+        system_status: dict[str, Any],
         channels: list[dict[str, Any]],
         capabilities: dict[str, bool],
         storage: dict[str, Any] | None = None,
@@ -1526,7 +1576,9 @@ class HikvisionISAPICoordinator(DataUpdateCoordinator[HikvisionISAPIData]):
         self._verify_ssl = verify_ssl
         self._use_https = use_https
         self.device_info: dict[str, str] = {}
-        self.system_status: dict[str, str] = {}
+        # v0.9: also carries int and nested-dict values (dome_info,
+        # camera_usage, batteryAllowance) — see _parse_system_status.
+        self.system_status: dict[str, Any] = {}
         self.channels: list[dict[str, Any]] = []
         self.capabilities: dict[str, bool] = {}
         self.storage: dict[str, Any] = {}

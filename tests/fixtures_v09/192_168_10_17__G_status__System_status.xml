@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<DeviceStatus version="1.0" xmlns="http://www.hikvision.com/ver20/XMLSchema">
+<currentDeviceTime>2026-10-04T04:11:51+08:00</currentDeviceTime>
+<deviceUpTime>762227</deviceUpTime>
+<MemoryList>
+<Memory>
+<memoryDescription>DDR Memory</memoryDescription>
+<memoryUsage>
+399.062500</memoryUsage>
+<memoryAvailable>
+551.023438</memoryAvailable>
+</Memory>
+</MemoryList>
+</DeviceStatus>

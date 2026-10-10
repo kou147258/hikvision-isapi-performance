@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<ImageChannel version="2.0" xmlns="http://www.isapi.org/ver20/XMLSchema">
+<id>1</id>
+<inputPort>1</inputPort>
+<Color>
+<brightnessLevel>50</brightnessLevel>
+<contrastLevel>50</contrastLevel>
+<saturationLevel>50</saturationLevel>
+</Color>
+<enableImageLossDetection>false</enableImageLossDetection>
+</ImageChannel>

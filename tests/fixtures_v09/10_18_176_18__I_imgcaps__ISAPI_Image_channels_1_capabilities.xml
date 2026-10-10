@@ -1,0 +1,125 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ImageChannel version="2.0" xmlns="http://www.hikvision.com/ver20/XMLSchema">
+<id>1</id>
+<enabled>true</enabled>
+<videoInputID>1</videoInputID>
+<ImageFlip>
+<enabled opt="true,false">false</enabled>
+<ImageFlipStyle opt="LEFTRIGHT,UPDOWN,CENTER"></ImageFlipStyle>
+</ImageFlip>
+<WDR>
+<mode opt="close,open">close</mode>
+<WDRLevel min="0" max="15">8</WDRLevel>
+</WDR>
+<BLC>
+<enabled opt="ture,false">false</enabled>
+<BLCMode opt="CLOSE,UP,DOWN,LEFT,RIGHT,CENTER,AUTO">CLOSE</BLCMode>
+<BLCRegionList>
+<BLCRegion>
+<id>1</id>
+<RegionCoordinatesList>
+<RegionCoordinates>
+<positionX>0</positionX>
+<positionY>480</positionY>
+</RegionCoordinates>
+<RegionCoordinates>
+<positionX>0</positionX>
+<positionY>480</positionY>
+</RegionCoordinates>
+<RegionCoordinates>
+<positionX>0</positionX>
+<positionY>480</positionY>
+</RegionCoordinates>
+<RegionCoordinates>
+<positionX>0</positionX>
+<positionY>480</positionY>
+</RegionCoordinates>
+</RegionCoordinatesList>
+</BLCRegion>
+</BLCRegionList>
+</BLC>
+<IrcutFilter>
+<IrcutFilterType opt="day,night,auto,schedule,eventTrigger">auto</IrcutFilterType>
+<nightToDayFilterLevel opt="0,1,2,3,4,5,6,7">4</nightToDayFilterLevel>
+<Schedule>
+<scheduleType>day</scheduleType>
+<TimeRange>
+<beginTime>07:00:00</beginTime>
+<endTime>18:00:00</endTime>
+</TimeRange>
+</Schedule>
+</IrcutFilter>
+<WhiteBalance>
+<WhiteBalanceStyle opt="manual,auto1,auto2,incandescentlight,outdoor,indoor,daylightLamp">indoor</WhiteBalanceStyle>
+<WhiteBalanceRed min="0" max="100">50</WhiteBalanceRed>
+<WhiteBalanceBlue min="0" max="100">50</WhiteBalanceBlue>
+</WhiteBalance>
+<Exposure>
+<ExposureType opt="manual,auto,IrisFirst,ShutterFirst">auto</ExposureType>
+</Exposure>
+<Iris>
+<IrisLevel opt="160,200,240,280,340,400,480,560,680,960,1100,1400,1600,1900,2200">160</IrisLevel>
+<maxIrisLevelLimit min="0" max="100">100</maxIrisLevelLimit>
+<minIrisLevelLimit min="0" max="100">0</minIrisLevelLimit>
+</Iris>
+<Sharpness>
+<SharpnessLevel min="0" max="100">30</SharpnessLevel>
+</Sharpness>
+<Shutter>
+<ShutterLevel opt="1/30,1/60,1/90,1/100,1/125,1/180,1/195,1/215,1/230,1/250,1/350,1/500,1/725,1/1000,1/1500,1/2000,1/3000,1/4000,1/6000,1/10000,1/30000">1/30</ShutterLevel>
+<maxShutterLevelLimit opt="1/30,1/60,1/90,1/100,1/125,1/180,1/195,1/215,1/230,1/250,1/350,1/500,1/725,1/1000,1/1500,1/2000,1/3000,1/4000,1/6000,1/10000,1/30000">1/30</maxShutterLevelLimit>
+<minShutterLevelLimit opt="1/30,1/60,1/90,1/100,1/125,1/180,1/195,1/215,1/230,1/250,1/350,1/500,1/725,1/1000,1/1500,1/2000,1/3000,1/4000,1/6000,1/10000,1/30000">1/30000</minShutterLevelLimit>
+</Shutter>
+<powerLineFrequency>
+<powerLineFrequencyMode opt="50hz,60hz">60hz</powerLineFrequencyMode>
+</powerLineFrequency>
+<Gain>
+<GainLevel min="0" max="15">60</GainLevel>
+<GainLimit min="0" max="15">100</GainLimit>
+</Gain>
+<Color>
+<brightnessLevel min="0" max="100">62</brightnessLevel>
+<contrastLevel min="0" max="100">62</contrastLevel>
+<saturationLevel min="0" max="100">75</saturationLevel>
+</Color>
+<NoiseReduce>
+<mode opt="close,general,advanced">general</mode>
+<GeneralMode>
+<generalLevel min="0" max="100">50</generalLevel>
+</GeneralMode>
+<AdvancedMode>
+<FrameNoiseReduceLevel min="0" max="100">73</FrameNoiseReduceLevel>
+<InterFrameNoiseReduceLevel min="0" max="100">73</InterFrameNoiseReduceLevel>
+</AdvancedMode>
+</NoiseReduce>
+<PTZ>
+<enabled>true</enabled>
+</PTZ>
+<Dehaze>
+<DehazeMode opt="close,open">close</DehazeMode>
+<DehazeLevel min="0" max="100">53</DehazeLevel>
+</Dehaze>
+<HLC>
+<enabled opt="true,false">false</enabled>
+</HLC>
+<LensInitialization>
+<enabled opt="true, false">true</enabled>
+</LensInitialization>
+<FocusConfiguration>
+<focusStyle opt="AUTO,MANUAL,SEMIAUTOMATIC">AUTO</focusStyle>
+<focusLimited opt="10,30,100,150,300,600,1000,2000,65535">10</focusLimited>
+</FocusConfiguration>
+<DSS>
+<enabled opt="true,false">false</enabled>
+<DSSLevel opt="*2,*3,*4,*6,*8">*2</DSSLevel>
+</DSS>
+<ZoomLimit>
+<ZoomLimitRatio opt="23,46,92,138,184,230,276">23</ZoomLimitRatio>
+</ZoomLimit>
+<CaptureMode>
+<mode opt="close,1920*1080@30fps">close</mode>
+</CaptureMode>
+<proportionalpan>
+<enabled opt="true,false">false</enabled>
+</proportionalpan>
+</ImageChannel>

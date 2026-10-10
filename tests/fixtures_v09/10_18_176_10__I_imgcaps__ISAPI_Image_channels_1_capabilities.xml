@@ -1,0 +1,103 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ImageChannel version="2.0" xmlns="http://www.hikvision.com/ver20/XMLSchema">
+<id>1</id>
+<enabled>true</enabled>
+<videoInputID>1</videoInputID>
+<WDR>
+<mode opt="close,open,auto">close</mode>
+<WDRLevel min="0" max="100">50</WDRLevel>
+</WDR>
+<BLC>
+<enabled opt="true,false">false</enabled>
+<BLCMode opt="CLOSE,UP,DOWN,LEFT,RIGHT,CENTER,AUTO">CLOSE</BLCMode>
+</BLC>
+<IrcutFilter>
+<IrcutFilterType opt="day,night,auto,schedule">auto</IrcutFilterType>
+<nightToDayFilterLevel opt="1,2,3,4,5,6,7">5</nightToDayFilterLevel>
+<Schedule>
+<scheduleType opt="day,night">day</scheduleType>
+<TimeRange>
+<beginTime>07:00:00</beginTime>
+<endTime>18:00:00</endTime>
+</TimeRange>
+</Schedule>
+</IrcutFilter>
+<WhiteBalance>
+<WhiteBalanceStyle opt="manual,locked,outdoor,indoor,daylightLamp,sodiumlight,autotrace,auto">auto</WhiteBalanceStyle>
+<WhiteBalanceRed min="0" max="255">50</WhiteBalanceRed>
+<WhiteBalanceBlue min="0" max="255">50</WhiteBalanceBlue>
+</WhiteBalance>
+<Exposure>
+<ExposureType opt="manual,auto,IrisFirst,ShutterFirst">auto</ExposureType>
+<OverexposeSuppress>
+<enabled opt="true,false">false</enabled>
+</OverexposeSuppress>
+</Exposure>
+<Iris>
+<IrisLevel opt="160,200,240,280,340,400,480,560,680,960,1100,1400,1600,1900,2200">160</IrisLevel>
+<maxIrisLevelLimit min="0" max="100">100</maxIrisLevelLimit>
+<minIrisLevelLimit min="0" max="100">0</minIrisLevelLimit>
+</Iris>
+<Sharpness>
+<SharpnessLevel min="0" max="100">50</SharpnessLevel>
+</Sharpness>
+<Shutter>
+<ShutterLevel opt="1/25,1/50,1/75,1/100,1/120,1/150,1/175,1/200,1/225,1/250,1/300,1/425,1/600,1/1000,1/1250,1/1750,1/2500,1/3500,1/6000,1/10000,1/30000">1/25</ShutterLevel>
+<maxShutterLevelLimit opt="1/25,1/50,1/75,1/100,1/120,1/150,1/175,1/200,1/225,1/250,1/300,1/425,1/600,1/1000,1/1250,1/1750,1/2500,1/3500,1/6000,1/10000,1/30000">1/100</maxShutterLevelLimit>
+<minShutterLevelLimit opt="1/25,1/50,1/75,1/100,1/120,1/150,1/175,1/200,1/225,1/250,1/300,1/425,1/600,1/1000,1/1250,1/1750,1/2500,1/3500,1/6000,1/10000,1/30000">1/30000</minShutterLevelLimit>
+</Shutter>
+<Gain>
+<GainLimit min="0" max="100">63</GainLimit>
+</Gain>
+<Color>
+<brightnessLevel min="0" max="100">50</brightnessLevel>
+<contrastLevel min="0" max="100">50</contrastLevel>
+<saturationLevel min="0" max="100">50</saturationLevel>
+</Color>
+<NoiseReduce>
+<mode opt="close,general,advanced">general</mode>
+<GeneralMode>
+<generalLevel min="0" max="100">50</generalLevel>
+</GeneralMode>
+<AdvancedMode>
+<FrameNoiseReduceLevel min="0" max="100">50</FrameNoiseReduceLevel>
+<InterFrameNoiseReduceLevel min="0" max="100">50</InterFrameNoiseReduceLevel>
+</AdvancedMode>
+</NoiseReduce>
+<PTZ>
+<enabled>true</enabled>
+</PTZ>
+<Dehaze>
+<DehazeMode opt="close,auto,open">close</DehazeMode>
+<DehazeLevel min="0" max="100">50</DehazeLevel>
+</Dehaze>
+<HLC>
+<enabled opt="true,false">false</enabled>
+</HLC>
+<FocusConfiguration>
+<focusStyle opt="AUTO,MANUAL,SEMIAUTOMATIC">AUTO</focusStyle>
+<focusDistanceMode opt="compatible"/>
+<focusLimited opt="10,50,100,150,300,600,1000,2000">600</focusLimited>
+</FocusConfiguration>
+<EIS>
+<enabled opt="true,false">false</enabled>
+</EIS>
+<DSS>
+<enabled opt="true,false">true</enabled>
+<DSSLevel opt="*1.25,*1.5,*2,*3,*4,*6,*8,auto">auto</DSSLevel>
+</DSS>
+<ImageFreeze>
+<enabled opt="true,false">false</enabled>
+</ImageFreeze>
+<SupplementLight>
+<mode opt="auto">auto</mode>
+<whiteLightbrightnessLimit min="0" max="100">100</whiteLightbrightnessLimit>
+<irLightbrightnessLimit min="0" max="100">100</irLightbrightnessLimit>
+</SupplementLight>
+<isSupportLaserSpotManual>false</isSupportLaserSpotManual>
+<isSupportDOFAdjust>false</isSupportDOFAdjust>
+<isSupportSmartNoiseReduce>true</isSupportSmartNoiseReduce>
+<smartNoiseReduce>
+<level min="0" max="100">50</level>
+</smartNoiseReduce>
+</ImageChannel>

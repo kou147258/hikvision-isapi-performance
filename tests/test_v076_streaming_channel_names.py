@@ -117,7 +117,7 @@ def test_ipc_channel_name_comes_from_channelName_element():
 def test_ipc_online_comes_from_enabled_element():
     """``<enabled>`` is this shape's online indicator.
 
-    The grouped 仓库 channel merges an enabled main stream with a disabled
+    The grouped 摄像机06 channel merges an enabled main stream with a disabled
     sub stream, so it is online (a camera streaming on any stream counts
     as online). To keep the original v0.7.6 guarantee that ``enabled=false``
     is NOT coerced to True, assert it directly on a single disabled stream.

@@ -69,6 +69,12 @@ __all__ = [
     "DEFAULT_RECORDING_TOLERANCE_SECONDS",
     "build_search_body",
     "parse_streaming_sessions",
+    # v0.9 batch 1: fields already present in the /System/status response
+    # the integration fetches on every poll, but which the pre-v0.9 parser
+    # discarded. Zero extra network cost.
+    "parse_dome_info",
+    "parse_camera_usage",
+    "parse_status_extras",
 ]
 
 # Search window for recording-segment queries. Kept short on purpose:
@@ -613,3 +619,146 @@ def parse_streaming_sessions(root: ET.Element | None) -> int | None:
     if tag != "StreamingSessionStatusList":
         return None
     return len(root.findall(".//StreamingSessionStatus"))
+
+
+# ── 9. v0.9: /System/status fields the pre-v0.9 parser discarded ──
+#
+# ``/ISAPI/System/status`` is fetched on EVERY poll and already parsed by
+# ``coordinator._parse_system_status`` — but that parser only extracted 8
+# fields and threw the rest of the response away. Probing the full
+# response across the 12-device fleet (probe_captures/v09_wide, captured
+# 2026-10-04) showed three more groups of real telemetry sitting in the
+# same payload, at ZERO extra network cost:
+#
+#   DomeInfoList  PTZ/dome lifetime counters   6/12 devices (dome IPCs only)
+#   CameraList    lens actuation counters      6/12 devices (same six)
+#   memoryDescription / cpuDescription         12/12 and 11/12
+#   batteryAllowance / videoRewritingTimes     1/12 (176.10 only)
+#
+# Fleet split (real captures):
+#   dome + camera present : 176.10, 176.12, 176.13, 176.51, 176.52, 176.53
+#   absent entirely       : 176.16, 176.17, 176.18 (fixed-lens IPCs),
+#                           176.64, 176.65, R17.17 (recorders)
+#
+# Unit proof (not an assumption): on all six dome devices the three
+# temperature-bucket runtimes sum EXACTLY to domeRunTotalTime, e.g.
+# 176.10: 0 + 248171 + 360134 = 608305. cameraRunTotalTime equals
+# domeRunTotalTime on the same six, and both are the same order of
+# magnitude as deviceUpTime (762399 s) — so these are seconds.
+
+
+def _block(root: ET.Element | None, tag: str) -> ET.Element | None:
+    """Return the first descendant element named ``tag``, or None."""
+    if root is None:
+        return None
+    return root.find(f".//{tag}")
+
+
+# DomeInfo XML tag → result key. Kept as a table so the mapping is
+# reviewable in one place and so adding a field cannot silently drift.
+_DOME_FIELDS: dict[str, str] = {
+    "domeRunTotalTime": "dome_run_total_time",
+    "panTotalRounds": "pan_total_rounds",
+    "tiltTotalRounds": "tilt_total_rounds",
+    "heatState": "heat_state",
+    "fanState": "fan_state",
+    "runTimeUnderNegativetwenty": "run_time_under_neg20",
+    "runTimeBetweenNtwentyPforty": "run_time_between_neg20_pos40",
+    "runtimeOverPositiveforty": "run_time_over_pos40",
+    "panFrecRecord": "pan_freq_record",   # firmware typo "Frec" is real
+    "tiltFrecRecord": "tilt_freq_record",
+}
+
+# CameraList XML tag → result key.
+_CAMERA_FIELDS: dict[str, str] = {
+    "cameraRunTotalTime": "camera_run_total_time",
+    "zoomTotalSteps": "zoom_total_steps",
+    "focusTotalSteps": "focus_total_steps",
+    "irisTotalSteps": "iris_total_steps",
+    "icrTotalSteps": "icr_total_steps",
+    "zoomReverseTimes": "zoom_reverse_times",
+    "focusReverseTimes": "focus_reverse_times",
+    "irisShiftTimes": "iris_shift_times",
+    "icrShiftTimes": "icr_shift_times",
+    "lensIntirTimes": "lens_init_times",  # firmware typo "Intir" is real
+}
+
+
+def parse_dome_info(root: ET.Element | None) -> dict[str, int | None] | None:
+    """Parse ``<DomeInfo>`` (PTZ/dome lifetime counters), or None if absent.
+
+    Returns:
+      * ``dict`` — when the device reports a ``<DomeInfo>`` block.
+        **A value of ``0`` is real data, not absence**: 176.13/51/52/53
+        report every counter as 0 because the dome has never moved.
+        Conflating 0 with missing would render those four as "unknown" —
+        exactly the symptom the user reported.
+      * ``None`` — no ``<DomeInfo>`` block (fixed-lens IPCs, all recorders),
+        or a failed endpoint. Callers skip entity creation entirely.
+    """
+    block = _block(root, "DomeInfo")
+    if block is None:
+        return None
+    out: dict[str, int | None] = {}
+    for tag, key in _DOME_FIELDS.items():
+        out[key] = _as_int(_text(block, tag))
+    return out
+
+
+def parse_camera_usage(root: ET.Element | None) -> dict[str, int | None] | None:
+    """Parse ``<Camera>`` (lens actuation counters), or None if absent.
+
+    Same tri-state contract as :func:`parse_dome_info`: ``0`` is a real
+    reading (a brand-new lens that has never zoomed), absence is ``None``.
+
+    These counters are the closest thing Hikvision exposes to lens wear —
+    zoom/focus/iris/ICR actuation totals. Useful for spotting a camera
+    whose autofocus is hunting (high focus_reverse_times).
+    """
+    block = _block(root, "Camera")
+    if block is None:
+        return None
+    out: dict[str, int | None] = {}
+    for tag, key in _CAMERA_FIELDS.items():
+        out[key] = _as_int(_text(block, tag))
+    return out
+
+
+def parse_status_extras(root: ET.Element | None) -> dict[str, Any]:
+    """Parse the remaining ``/System/status`` fields worth exposing.
+
+    Always returns a dict (never None) so callers can use ``.get()``
+    unconditionally; individual keys are absent/None when the device
+    doesn't report them.
+
+    Fleet coverage (12 devices):
+      ``memory_description``     12/12  "DDR Memory"
+      ``cpu_description``        11/12  R17.17 has no ``<CPUList>``
+      ``battery_allowance``       1/12  176.10 only — value 0 is real
+      ``video_rewriting_times``   1/12  176.10 only (SD card rewrite count)
+
+    Note ``batteryAllowance=0`` on 176.10 is a genuine reading (this model
+    has no battery), distinct from the other 11 devices where the field is
+    simply absent.
+    """
+    out: dict[str, Any] = {
+        "memory_description": None,
+        "cpu_description": None,
+        "battery_allowance": None,
+        "video_rewriting_times": None,
+    }
+    if root is None:
+        return out
+
+    mem = _text(root, ".//memoryDescription")
+    if mem is not None:
+        mem = mem.strip() or None
+    cpu = _text(root, ".//cpuDescription")
+    if cpu is not None:
+        cpu = cpu.strip() or None
+
+    out["memory_description"] = mem
+    out["cpu_description"] = cpu
+    out["battery_allowance"] = _as_int(_text(root, ".//batteryAllowance"))
+    out["video_rewriting_times"] = _as_int(_text(root, ".//videoRewritingTimes"))
+    return out

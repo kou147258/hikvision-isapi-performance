@@ -1,0 +1,60 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<SNMP version="2.0" xmlns="http://www.hikvision.com/ver20/XMLSchema">
+<SNMPv1c version="2.0" xmlns="http://www.hikvision.com/ver20/XMLSchema">
+<notificationEnabled>true</notificationEnabled>
+<SNMPTrapReceiverList version="2.0" xmlns="http://www.hikvision.com/ver20/XMLSchema">
+<SNMPTrapReceiver version="2.0" xmlns="http://www.hikvision.com/ver20/XMLSchema">
+<id>1</id>
+<ReceiverAddress>
+<addressingFormatType>ipaddress</addressingFormatType>
+<ipAddress></ipAddress>
+<portNo>162</portNo>
+</ReceiverAddress>
+<notificationType>trap</notificationType>
+<communityString>public</communityString>
+</SNMPTrapReceiver>
+</SNMPTrapReceiverList>
+<enabled>false</enabled>
+<writeCommunity>private</writeCommunity>
+<readCommunity>public</readCommunity>
+</SNMPv1c>
+<SNMPv2c version="2.0" xmlns="http://www.hikvision.com/ver20/XMLSchema">
+<notificationEnabled>true</notificationEnabled>
+<SNMPTrapReceiverList version="2.0" xmlns="http://www.hikvision.com/ver20/XMLSchema">
+<SNMPTrapReceiver version="2.0" xmlns="http://www.hikvision.com/ver20/XMLSchema">
+<id>1</id>
+<ReceiverAddress>
+<addressingFormatType>ipaddress</addressingFormatType>
+<ipAddress></ipAddress>
+<portNo>162</portNo>
+</ReceiverAddress>
+<notificationType>trap</notificationType>
+<communityString>public</communityString>
+</SNMPTrapReceiver>
+</SNMPTrapReceiverList>
+<enabled>false</enabled>
+<writeCommunity>private</writeCommunity>
+<readCommunity>public</readCommunity>
+</SNMPv2c>
+<SNMPAdvanced version="2.0" xmlns="http://www.hikvision.com/ver20/XMLSchema">
+<localEngineID>08541185d09d</localEngineID>
+<SNMPUserList>
+<SNMPUser version="2.0" xmlns="http://www.hikvision.com/ver20/XMLSchema">
+<id>1</id>
+<userName></userName>
+<remoteEngineID></remoteEngineID>
+<snmpAuthenticationMethod>none</snmpAuthenticationMethod>
+<snmpPrivacyMethod>none</snmpPrivacyMethod>
+</SNMPUser>
+<SNMPUser version="2.0" xmlns="http://www.hikvision.com/ver20/XMLSchema">
+<id>2</id>
+<userName></userName>
+<remoteEngineID></remoteEngineID>
+<snmpAuthenticationMethod>none</snmpAuthenticationMethod>
+<snmpPrivacyMethod>none</snmpPrivacyMethod>
+</SNMPUser>
+</SNMPUserList>
+<enabled>false</enabled>
+</SNMPAdvanced>
+<listenPort>161</listenPort>
+</SNMP>

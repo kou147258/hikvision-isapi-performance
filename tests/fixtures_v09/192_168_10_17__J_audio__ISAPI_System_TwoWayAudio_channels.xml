@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<TwoWayAudioChannelList version="1.0" xmlns="http://www.hikvision.com/ver20/XMLSchema">
+<TwoWayAudioChannel version="1.0" xmlns="http://www.hikvision.com/ver20/XMLSchema">
+<id>1</id>
+<enabled>false</enabled>
+<audioCompressionType>G.711alaw</audioCompressionType>
+</TwoWayAudioChannel>
+<TwoWayAudioChannel version="1.0" xmlns="http://www.hikvision.com/ver20/XMLSchema">
+<id>1001</id>
+<enabled>false</enabled>
+<audioCompressionType>G.711alaw</audioCompressionType>
+<associateVideoInputs>
+<enabled>true</enabled>
+<videoInputChannelList>
+<videoInputChannelID>1</videoInputChannelID>
+</videoInputChannelList>
+</associateVideoInputs>
+</TwoWayAudioChannel>
+<TwoWayAudioChannel version="1.0" xmlns="http://www.hikvision.com/ver20/XMLSchema">
+<id>2002</id>
+<enabled>false</enabled>
+<audioCompressionType>G.711alaw</audioCompressionType>
+<associateVideoInputs>
+<enabled>true</enabled>
+<videoInputChannelList>
+<videoInputChannelID>2</videoInputChannelID>
+</videoInputChannelList>
+</associateVideoInputs>
+</TwoWayAudioChannel>
+</TwoWayAudioChannelList>
